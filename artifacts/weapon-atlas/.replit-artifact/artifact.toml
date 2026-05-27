@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "Weapon Atlas Generator"
+version = "1.0.0"
+id = "artifacts/weapon-atlas"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 18464
+
+[services.development]
+run = "pnpm --filter @workspace/weapon-atlas run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/weapon-atlas", "run", "build" ]
+publicDir = "artifacts/weapon-atlas/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "18464"
+BASE_PATH = "/"
