@@ -2,6 +2,10 @@ import JSZip from "jszip";
 import { packAtlas } from "./atlasPacker";
 import { generateManifest, generateAnimations } from "./manifestGenerator";
 import { renderPartToCanvas, ALL_PARTS } from "./weaponRenderer";
+import {
+  renderRarityAuraCanvas, renderElementEffectCanvas,
+  RarityLevel, ElementType
+} from "./effects";
 
 const README_CONTENT = `# Weapon Atlas — Integration Guide
 ## PixiJS MMORPG Modular Weapon Pack v2.0.0
@@ -319,7 +323,30 @@ export async function exportZip() {
 
   await Promise.all(renderPromises);
 
-  // 10. Generate and download ZIP
+  // 10. Effect overlay PNGs
+  const effectsFolder = root.folder("effects")!;
+  const aurasFolder = effectsFolder.folder("auras")!;
+  const elementsFolder = effectsFolder.folder("elements")!;
+
+  const rarities: RarityLevel[] = ["common", "uncommon", "rare", "epic", "legendary", "mythic"];
+  const elements: ElementType[] = ["fire", "ice", "electro", "wind"];
+
+  const effectPromises: Promise<void>[] = [
+    ...rarities.map(async (rarity) => {
+      const canvas = renderRarityAuraCanvas(rarity);
+      const blob = await new Promise<Blob | null>(res => canvas.toBlob(res, "image/png"));
+      if (blob) aurasFolder.file(`${rarity}_aura.png`, blob);
+    }),
+    ...elements.map(async (el) => {
+      const canvas = renderElementEffectCanvas(el);
+      const blob = await new Promise<Blob | null>(res => canvas.toBlob(res, "image/png"));
+      if (blob) elementsFolder.file(`${el}_effect.png`, blob);
+    }),
+  ];
+
+  await Promise.all(effectPromises);
+
+  // 11. Generate and download ZIP
   const content = await zip.generateAsync({
     type: "blob",
     compression: "DEFLATE",
