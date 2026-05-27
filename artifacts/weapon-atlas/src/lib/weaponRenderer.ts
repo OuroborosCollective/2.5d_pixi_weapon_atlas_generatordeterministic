@@ -1211,6 +1211,454 @@ function drawCrystalArcane(ctx: CanvasRenderingContext2D) {
   glow(ctx, cx, (top + bot) / 2, 30, "rgba(180,80,255,0.25)");
 }
 
+// ─── DAGGER BLADES ───────────────────────────────────────────────────────────
+
+function drawDaggerBladeIron(ctx: CanvasRenderingContext2D) {
+  const cx = 64, top = 10, bot = 100, bw = 7;
+  // Narrow, very pointed, double-edged dirk
+  ctx.beginPath();
+  ctx.moveTo(cx, top);
+  ctx.lineTo(cx + bw, top + 22);
+  ctx.lineTo(cx + bw - 1, bot);
+  ctx.lineTo(cx - bw + 1, bot);
+  ctx.lineTo(cx - bw, top + 22);
+  ctx.closePath();
+  const lg = ctx.createLinearGradient(cx - bw, 0, cx + bw, 0);
+  lg.addColorStop(0, "#505050"); lg.addColorStop(0.4, "#c0c0c0"); lg.addColorStop(0.5, "#e8e8e8"); lg.addColorStop(0.6, "#a0a0a0"); lg.addColorStop(1, "#404040");
+  ctx.fillStyle = lg; ctx.fill(); outline(ctx, "#111", 3);
+  // Fuller groove center
+  ctx.beginPath(); ctx.moveTo(cx, top + 8); ctx.lineTo(cx, bot - 4);
+  ctx.strokeStyle = "rgba(255,255,255,0.65)"; ctx.lineWidth = 1.8; ctx.stroke();
+  // Fuller side shadow
+  ctx.beginPath(); ctx.moveTo(cx - 2, top + 22); ctx.lineTo(cx - 2, bot - 5);
+  ctx.strokeStyle = "rgba(0,0,0,0.3)"; ctx.lineWidth = 2; ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(cx + 2, top + 22); ctx.lineTo(cx + 2, bot - 5);
+  ctx.strokeStyle = "rgba(0,0,0,0.3)"; ctx.lineWidth = 2; ctx.stroke();
+}
+
+function drawDaggerBladeShadow(ctx: CanvasRenderingContext2D) {
+  // Curved assassin blade, dark steel, serrated spine
+  const cx = 64, top = 8, bot = 102, bw = 9;
+  ctx.beginPath();
+  ctx.moveTo(cx, top);
+  ctx.bezierCurveTo(cx + bw + 4, top + 25, cx + bw, top + 55, cx + 2, bot);
+  ctx.lineTo(cx - 2, bot);
+  // Serrated left spine
+  let sy = bot;
+  while (sy > top + 22) {
+    ctx.lineTo(cx - bw + 6, sy - 7);
+    ctx.lineTo(cx - bw, sy - 14);
+    sy -= 14;
+  }
+  ctx.lineTo(cx - bw, top + 20);
+  ctx.closePath();
+  const lg = ctx.createLinearGradient(cx - bw, 0, cx + bw, 0);
+  lg.addColorStop(0, "#0a0a1a"); lg.addColorStop(0.4, "#2a2a3a"); lg.addColorStop(0.7, "#505060"); lg.addColorStop(1, "#0a0a1a");
+  ctx.shadowColor = "#4040a0"; ctx.shadowBlur = 8;
+  ctx.fillStyle = lg; ctx.fill(); ctx.shadowBlur = 0; outline(ctx, "#050510", 3);
+  shine(ctx, cx + 4, top + 18, cx + bw - 1, bot - 8, 0.4);
+}
+
+function drawDaggerBladeGold(ctx: CanvasRenderingContext2D) {
+  // Stiletto — very thin needle blade, ornate
+  const cx = 64, top = 6, bot = 106, bw = 5;
+  ctx.beginPath();
+  ctx.moveTo(cx, top);
+  ctx.lineTo(cx + bw, top + 18);
+  ctx.lineTo(cx + bw - 1, bot);
+  ctx.lineTo(cx - bw + 1, bot);
+  ctx.lineTo(cx - bw, top + 18);
+  ctx.closePath();
+  const lg = ctx.createLinearGradient(cx - bw, 0, cx + bw, 0);
+  lg.addColorStop(0, "#8a5c00"); lg.addColorStop(0.4, "#f9c825"); lg.addColorStop(0.5, "#fffde0"); lg.addColorStop(0.6, "#e8a800"); lg.addColorStop(1, "#7a4800");
+  ctx.fillStyle = lg; ctx.fill(); outline(ctx, "#1a0a00", 3);
+  // Ornate filigree marks
+  ctx.strokeStyle = "rgba(120,80,0,0.5)"; ctx.lineWidth = 1;
+  for (const fy of [bot - 20, bot - 40, bot - 60]) {
+    ctx.beginPath(); ctx.moveTo(cx - 3, fy); ctx.lineTo(cx + 3, fy); ctx.stroke();
+  }
+  shine(ctx, cx, top + 5, cx, bot - 8, 0.65);
+  gem(ctx, cx, bot - 12, 4, "#e040fb", "#4a0060");
+}
+
+// ─── BOW LIMBS ────────────────────────────────────────────────────────────────
+
+function drawBowLimbWood(ctx: CanvasRenderingContext2D) {
+  // Full recurve bow — vertical, symmetric limbs
+  const cx = 64, cy = 64, armH = 48, armW = 18, recurveX = 22;
+  const woodGrad = (y0: number, y1: number) => {
+    const g = ctx.createLinearGradient(cx - armW, y0, cx + armW, y1);
+    g.addColorStop(0, "#3e2210"); g.addColorStop(0.4, "#7a4820"); g.addColorStop(0.7, "#a06030"); g.addColorStop(1, "#3e2210");
+    return g;
+  };
+  // Upper limb
+  ctx.beginPath();
+  ctx.moveTo(cx - 5, cy - 6);
+  ctx.bezierCurveTo(cx - armW, cy - 18, cx - recurveX, cy - armH - 8, cx - 8, cy - armH - 14);
+  ctx.bezierCurveTo(cx - 2, cy - armH - 16, cx + 4, cy - armH - 14, cx + 8, cy - armH - 10);
+  ctx.bezierCurveTo(cx + recurveX - 2, cy - armH, cx + armW - 4, cy - 14, cx + 5, cy - 6);
+  ctx.closePath();
+  ctx.fillStyle = woodGrad(cy - armH - 16, cy - 6); ctx.fill(); outline(ctx, "#0d0800", 3);
+  // Lower limb (mirror)
+  ctx.save(); ctx.translate(cx, cy); ctx.scale(1, -1); ctx.translate(-cx, -cy);
+  ctx.beginPath();
+  ctx.moveTo(cx - 5, cy - 6);
+  ctx.bezierCurveTo(cx - armW, cy - 18, cx - recurveX, cy - armH - 8, cx - 8, cy - armH - 14);
+  ctx.bezierCurveTo(cx - 2, cy - armH - 16, cx + 4, cy - armH - 14, cx + 8, cy - armH - 10);
+  ctx.bezierCurveTo(cx + recurveX - 2, cy - armH, cx + armW - 4, cy - 14, cx + 5, cy - 6);
+  ctx.closePath();
+  ctx.fillStyle = woodGrad(cy - armH - 16, cy - 6); ctx.fill(); outline(ctx, "#0d0800", 3); ctx.restore();
+  // Riser (center grip)
+  ctx.beginPath(); ctx.roundRect(cx - 7, cy - 12, 14, 24, 4);
+  const rg = ctx.createLinearGradient(cx - 7, 0, cx + 7, 0);
+  rg.addColorStop(0, "#3e2210"); rg.addColorStop(0.5, "#8b5520"); rg.addColorStop(1, "#3e2210");
+  ctx.fillStyle = rg; ctx.fill(); outline(ctx, "#0d0800", 2.5);
+  // Grain lines
+  ctx.strokeStyle = "rgba(60,30,10,0.35)"; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(cx - 2, cy - armH - 6); ctx.lineTo(cx - 2, cy + armH + 6); ctx.stroke();
+  // Tip nocks
+  for (const ty of [cy - armH - 10, cy + armH + 10]) {
+    ctx.beginPath(); ctx.arc(cx, ty, 4, 0, Math.PI * 2);
+    ctx.fillStyle = "#c0c0c0"; ctx.fill(); outline(ctx, "#111", 1.5);
+  }
+}
+
+function drawBowLimbCrystal(ctx: CanvasRenderingContext2D) {
+  const cx = 64, cy = 64, armH = 48, recurveX = 20;
+  const crystalGrad = () => {
+    const g = ctx.createLinearGradient(cx - 20, 0, cx + 20, 0);
+    g.addColorStop(0, "#003344"); g.addColorStop(0.4, "#00bcd4"); g.addColorStop(0.6, "#e0f7fa"); g.addColorStop(1, "#003344");
+    return g;
+  };
+  for (const sign of [1, -1]) {
+    ctx.save(); if (sign === -1) { ctx.translate(cx, cy); ctx.scale(1, -1); ctx.translate(-cx, -cy); }
+    ctx.beginPath();
+    ctx.moveTo(cx - 5, cy - 6);
+    ctx.bezierCurveTo(cx - 18, cy - 18, cx - recurveX, cy - armH - 4, cx - 6, cy - armH - 12);
+    ctx.bezierCurveTo(cx, cy - armH - 16, cx + 6, cy - armH - 12, cx + 8, cy - armH - 6);
+    ctx.bezierCurveTo(cx + recurveX, cy - armH, cx + 18, cy - 14, cx + 5, cy - 6);
+    ctx.closePath();
+    ctx.shadowColor = "#00e5ff"; ctx.shadowBlur = 10;
+    ctx.fillStyle = crystalGrad(); ctx.fill(); ctx.shadowBlur = 0; outline(ctx, "#001a1a", 2.5);
+    // Ice facet lines
+    ctx.strokeStyle = "rgba(200,240,255,0.5)"; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(cx - 2, cy - armH - 8); ctx.lineTo(cx - 2, cy - 12); ctx.stroke();
+    ctx.restore();
+  }
+  // Crystal riser
+  ctx.beginPath(); ctx.roundRect(cx - 7, cy - 12, 14, 24, 2);
+  const rg = ctx.createLinearGradient(cx - 7, 0, cx + 7, 0);
+  rg.addColorStop(0, "#003344"); rg.addColorStop(0.5, "#a0e4f0"); rg.addColorStop(1, "#003344");
+  ctx.shadowColor = "#00e5ff"; ctx.shadowBlur = 8;
+  ctx.fillStyle = rg; ctx.fill(); ctx.shadowBlur = 0; outline(ctx, "#001a1a", 2.5);
+  // Tip gems
+  for (const ty of [cy - armH - 10, cy + armH + 10]) {
+    smallGem(ctx, cx, ty, 5, "#4fc3f7", "#003366");
+  }
+}
+
+function drawBowLimbVoid(ctx: CanvasRenderingContext2D) {
+  const cx = 64, cy = 64, armH = 50, recurveX = 22;
+  for (const sign of [1, -1]) {
+    ctx.save(); if (sign === -1) { ctx.translate(cx, cy); ctx.scale(1, -1); ctx.translate(-cx, -cy); }
+    ctx.beginPath();
+    ctx.moveTo(cx - 5, cy - 6);
+    ctx.bezierCurveTo(cx - 20, cy - 16, cx - recurveX, cy - armH - 6, cx - 8, cy - armH - 14);
+    ctx.bezierCurveTo(cx - 2, cy - armH - 18, cx + 4, cy - armH - 14, cx + 8, cy - armH - 8);
+    ctx.bezierCurveTo(cx + recurveX, cy - armH, cx + 20, cy - 12, cx + 5, cy - 6);
+    ctx.closePath();
+    const lg = ctx.createLinearGradient(cx - 22, 0, cx + 22, 0);
+    lg.addColorStop(0, "#0a0015"); lg.addColorStop(0.4, "#3a006a"); lg.addColorStop(0.6, "#6020a0"); lg.addColorStop(1, "#0a0015");
+    ctx.shadowColor = "#8040ff"; ctx.shadowBlur = 10;
+    ctx.fillStyle = lg; ctx.fill(); ctx.shadowBlur = 0; outline(ctx, "#0d0014", 2.5);
+    ctx.restore();
+  }
+  // Void riser
+  ctx.beginPath(); ctx.roundRect(cx - 7, cy - 12, 14, 24, 2);
+  ctx.fillStyle = "#0a0015"; ctx.fill(); outline(ctx, "#0d0014", 2.5);
+  ctx.strokeStyle = "#8040ff"; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.roundRect(cx - 7, cy - 12, 14, 24, 2); ctx.stroke();
+  // Tip glow orbs
+  for (const ty of [cy - armH - 12, cy + armH + 12]) {
+    ctx.beginPath(); ctx.arc(cx, ty, 5, 0, Math.PI * 2);
+    ctx.fillStyle = "#6020a0"; ctx.fill(); outline(ctx, "#0d0014", 1.5);
+    glow(ctx, cx, ty, 10, "rgba(140,40,255,0.5)");
+  }
+}
+
+// ─── BOW STRINGS ─────────────────────────────────────────────────────────────
+
+function drawBowStringSinew(ctx: CanvasRenderingContext2D) {
+  const cx = 64, cy = 64, armH = 54;
+  // Simple natural string — thin arc
+  ctx.beginPath();
+  ctx.moveTo(cx, cy - armH);
+  ctx.bezierCurveTo(cx + 14, cy - 24, cx + 14, cy + 24, cx, cy + armH);
+  ctx.strokeStyle = "#c8a870"; ctx.lineWidth = 2.5; ctx.lineCap = "round"; ctx.stroke();
+  // Serving (center wrap)
+  ctx.strokeStyle = "#7a5020"; ctx.lineWidth = 4;
+  ctx.beginPath(); ctx.moveTo(cx + 12, cy - 14); ctx.lineTo(cx + 12, cy + 14); ctx.stroke();
+  ctx.strokeStyle = "#c8a870"; ctx.lineWidth = 1;
+  for (let y = cy - 12; y < cy + 12; y += 3) {
+    ctx.beginPath(); ctx.moveTo(cx + 10, y); ctx.lineTo(cx + 14, y + 2); ctx.stroke();
+  }
+  // Nock points
+  for (const ty of [cy - armH, cy + armH]) {
+    ctx.beginPath(); ctx.arc(cx, ty, 3, 0, Math.PI * 2);
+    ctx.fillStyle = "#c8a870"; ctx.fill();
+  }
+}
+
+function drawBowStringArcane(ctx: CanvasRenderingContext2D) {
+  const cx = 64, cy = 64, armH = 54;
+  // Glowing energy string
+  ctx.save();
+  ctx.shadowColor = "#8080ff"; ctx.shadowBlur = 8;
+  ctx.beginPath();
+  ctx.moveTo(cx, cy - armH);
+  ctx.bezierCurveTo(cx + 14, cy - 24, cx + 14, cy + 24, cx, cy + armH);
+  ctx.strokeStyle = "#c0c8ff"; ctx.lineWidth = 2; ctx.lineCap = "round"; ctx.stroke();
+  ctx.shadowBlur = 0; ctx.restore();
+  // Energy particles along string
+  ctx.fillStyle = "rgba(180,190,255,0.8)";
+  for (const [px, py] of [[cx + 13, cy - 16], [cx + 14, cy], [cx + 13, cy + 16]]) {
+    ctx.beginPath(); ctx.arc(px, py, 2.5, 0, Math.PI * 2); ctx.fill();
+  }
+  // Nock glow
+  for (const ty of [cy - armH, cy + armH]) {
+    ctx.beginPath(); ctx.arc(cx, ty, 4, 0, Math.PI * 2);
+    ctx.fillStyle = "#8080ff"; ctx.fill();
+    glow(ctx, cx, ty, 8, "rgba(120,120,255,0.5)");
+  }
+}
+
+// ─── KNUCKLES ─────────────────────────────────────────────────────────────────
+
+function drawKnuckleIron(ctx: CanvasRenderingContext2D) {
+  // 4-ring brass knuckle, horizontal
+  const cy = 64, startX = 14, ringR = 13, gap = 25;
+  const barY = cy + ringR - 3;
+  // Connecting bar at bottom
+  ctx.beginPath(); ctx.roundRect(startX - 2, barY, gap * 3 + ringR * 2 + 4, 10, 3);
+  const bg = ctx.createLinearGradient(0, barY, 0, barY + 10);
+  bg.addColorStop(0, "#c0c0c0"); bg.addColorStop(0.5, "#e0e0e0"); bg.addColorStop(1, "#606060");
+  ctx.fillStyle = bg; ctx.fill(); outline(ctx, "#1a1a1a", 2.5);
+  // 4 rings
+  for (let i = 0; i < 4; i++) {
+    const rx = startX + ringR + i * gap;
+    // Outer ring
+    ctx.beginPath(); ctx.arc(rx, cy, ringR, 0, Math.PI * 2);
+    const rg = ctx.createRadialGradient(rx - 3, cy - 3, 2, rx, cy, ringR);
+    rg.addColorStop(0, "#e0e0e0"); rg.addColorStop(0.5, "#a0a0a0"); rg.addColorStop(1, "#404040");
+    ctx.fillStyle = rg; ctx.fill(); outline(ctx, "#1a1a1a", 2.5);
+    // Inner hole
+    ctx.beginPath(); ctx.arc(rx, cy, ringR - 5, 0, Math.PI * 2);
+    ctx.fillStyle = "#111"; ctx.fill();
+    ctx.strokeStyle = "#333"; ctx.lineWidth = 1; ctx.stroke();
+    // Shine
+    shine(ctx, rx - ringR + 3, cy - ringR + 3, rx - 2, cy - ringR + 7, 0.5);
+  }
+}
+
+function drawKnuckleVoid(ctx: CanvasRenderingContext2D) {
+  // Spiked void knuckles
+  const cy = 66, startX = 14, ringR = 12, gap = 25;
+  const barY = cy + ringR - 3;
+  ctx.beginPath(); ctx.roundRect(startX - 2, barY, gap * 3 + ringR * 2 + 4, 10, 3);
+  const bg = ctx.createLinearGradient(0, barY, 0, barY + 10);
+  bg.addColorStop(0, "#1a003a"); bg.addColorStop(1, "#0a0015");
+  ctx.shadowColor = "#8040ff"; ctx.shadowBlur = 6;
+  ctx.fillStyle = bg; ctx.fill(); ctx.shadowBlur = 0; outline(ctx, "#0d0014", 2.5);
+  for (let i = 0; i < 4; i++) {
+    const rx = startX + ringR + i * gap;
+    ctx.beginPath(); ctx.arc(rx, cy, ringR, 0, Math.PI * 2);
+    const rg = ctx.createRadialGradient(rx - 3, cy - 3, 0, rx, cy, ringR);
+    rg.addColorStop(0, "#5a0090"); rg.addColorStop(1, "#0a0015");
+    ctx.fillStyle = rg; ctx.fill(); outline(ctx, "#0d0014", 2.5);
+    // Inner hole
+    ctx.beginPath(); ctx.arc(rx, cy, ringR - 5, 0, Math.PI * 2);
+    ctx.fillStyle = "#050010"; ctx.fill();
+    ctx.strokeStyle = "#4020a0"; ctx.lineWidth = 1; ctx.stroke();
+    // Top spike
+    ctx.beginPath();
+    ctx.moveTo(rx - 4, cy - ringR + 2);
+    ctx.lineTo(rx, cy - ringR - 10);
+    ctx.lineTo(rx + 4, cy - ringR + 2);
+    ctx.closePath();
+    ctx.fillStyle = "#3a006a"; ctx.fill(); outline(ctx, "#0d0014", 2);
+    // Purple gem on spike
+    smallGem(ctx, rx, cy - ringR - 4, 3, "#c060ff", "#400080");
+  }
+}
+
+function drawKnuckleGold(ctx: CanvasRenderingContext2D) {
+  const cy = 64, startX = 14, ringR = 13, gap = 25;
+  const barY = cy + ringR - 3;
+  ctx.beginPath(); ctx.roundRect(startX - 2, barY, gap * 3 + ringR * 2 + 4, 10, 3);
+  const bg = ctx.createLinearGradient(0, barY, 0, barY + 10);
+  bg.addColorStop(0, "#f9c825"); bg.addColorStop(0.5, "#fff176"); bg.addColorStop(1, "#bf6c00");
+  ctx.fillStyle = bg; ctx.fill(); outline(ctx, "#1a0a00", 2.5);
+  for (let i = 0; i < 4; i++) {
+    const rx = startX + ringR + i * gap;
+    ctx.beginPath(); ctx.arc(rx, cy, ringR, 0, Math.PI * 2);
+    const rg = ctx.createRadialGradient(rx - 4, cy - 4, 0, rx, cy, ringR);
+    rg.addColorStop(0, "#fff176"); rg.addColorStop(0.5, "#f9a825"); rg.addColorStop(1, "#7a4800");
+    ctx.fillStyle = rg; ctx.fill(); outline(ctx, "#1a0a00", 2.5);
+    ctx.beginPath(); ctx.arc(rx, cy, ringR - 5, 0, Math.PI * 2);
+    ctx.fillStyle = "#3a2000"; ctx.fill();
+    ctx.strokeStyle = "#bf6c00"; ctx.lineWidth = 1; ctx.stroke();
+    // Gem on top of each ring
+    smallGem(ctx, rx, cy - ringR + 1, 4, "#e040fb", "#4a0060");
+    shine(ctx, rx - ringR + 3, cy - ringR + 3, rx - 2, cy - ringR + 7, 0.55);
+  }
+}
+
+// ─── MACE HEADS ───────────────────────────────────────────────────────────────
+
+function drawMaceHeadIron(ctx: CanvasRenderingContext2D) {
+  const cx = 64, cy = 64, r = 32, spikes = 6;
+  // Spikes first (behind ball)
+  for (let i = 0; i < spikes; i++) {
+    const a = (i / spikes) * Math.PI * 2;
+    const sx = cx + r * Math.cos(a); const sy = cy + r * Math.sin(a);
+    const ox = cx + (r + 16) * Math.cos(a); const oy = cy + (r + 16) * Math.sin(a);
+    const px = cx + (r - 2) * Math.cos(a + 0.22); const py = cy + (r - 2) * Math.sin(a + 0.22);
+    const qx = cx + (r - 2) * Math.cos(a - 0.22); const qy = cy + (r - 2) * Math.sin(a - 0.22);
+    ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(ox, oy); ctx.lineTo(qx, qy); ctx.closePath();
+    const sg = ctx.createLinearGradient(sx, sy, ox, oy);
+    sg.addColorStop(0, "#d0d0d0"); sg.addColorStop(1, "#606060");
+    ctx.fillStyle = sg; ctx.fill(); outline(ctx, "#1a1a1a", 2);
+  }
+  // Ball
+  ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  const bg = ctx.createRadialGradient(cx - 8, cy - 8, 2, cx, cy, r);
+  bg.addColorStop(0, "#d8d8d8"); bg.addColorStop(0.5, "#909090"); bg.addColorStop(1, "#303030");
+  ctx.fillStyle = bg; ctx.fill(); outline(ctx, "#1a1a1a", 3);
+  shine(ctx, cx - 14, cy - 14, cx - 4, cy - 10, 0.65);
+}
+
+function drawMaceHeadFire(ctx: CanvasRenderingContext2D) {
+  const cx = 64, cy = 64, r = 30;
+  // Flame aura
+  glow(ctx, cx, cy, r + 20, "rgba(255,80,0,0.3)");
+  // Ball
+  ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  const bg = ctx.createRadialGradient(cx - 8, cy - 8, 2, cx, cy, r);
+  bg.addColorStop(0, "#ffcc00"); bg.addColorStop(0.4, "#ff6600"); bg.addColorStop(0.7, "#cc1100"); bg.addColorStop(1, "#4a0000");
+  ctx.shadowColor = "#ff5500"; ctx.shadowBlur = 18;
+  ctx.fillStyle = bg; ctx.fill(); ctx.shadowBlur = 0; outline(ctx, "#1a0800", 3);
+  // Crack lines with glow
+  ctx.strokeStyle = "#ffcc00"; ctx.lineWidth = 1.5;
+  for (const [sx, sy, ex, ey] of [[cx - 10, cy - 20, cx + 5, cy], [cx + 8, cy - 14, cx - 4, cy + 14], [cx - 8, cy + 8, cx + 12, cy + 18]]) {
+    ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(ex, ey);
+    ctx.shadowColor = "#ffcc00"; ctx.shadowBlur = 5; ctx.stroke(); ctx.shadowBlur = 0;
+  }
+  // Flame wisps around ball
+  ctx.fillStyle = "#ff9900";
+  for (let i = 0; i < 5; i++) {
+    const a = (i / 5) * Math.PI * 2;
+    ctx.beginPath(); ctx.arc(cx + (r + 6) * Math.cos(a), cy + (r + 6) * Math.sin(a), 5, 0, Math.PI * 2); ctx.fill();
+  }
+  shine(ctx, cx - 14, cy - 14, cx - 4, cy - 10, 0.55);
+}
+
+function drawMaceHeadVoid(ctx: CanvasRenderingContext2D) {
+  const cx = 64, cy = 64, r = 28, spikes = 8;
+  // Void spikes
+  for (let i = 0; i < spikes; i++) {
+    const a = (i / spikes) * Math.PI * 2;
+    const ox = cx + (r + 18) * Math.cos(a); const oy = cy + (r + 18) * Math.sin(a);
+    const px = cx + (r - 2) * Math.cos(a + 0.2); const py = cy + (r - 2) * Math.sin(a + 0.2);
+    const qx = cx + (r - 2) * Math.cos(a - 0.2); const qy = cy + (r - 2) * Math.sin(a - 0.2);
+    ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(ox, oy); ctx.lineTo(qx, qy); ctx.closePath();
+    ctx.fillStyle = "#1a0033"; ctx.fill(); outline(ctx, "#0d0014", 1.5);
+    smallGem(ctx, ox, oy, 3.5, "#c060ff", "#300060");
+  }
+  // Ball
+  ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  const bg = ctx.createRadialGradient(cx - 6, cy - 6, 0, cx, cy, r);
+  bg.addColorStop(0, "#5a0090"); bg.addColorStop(0.6, "#1a0033"); bg.addColorStop(1, "#050010");
+  ctx.shadowColor = "#9030d0"; ctx.shadowBlur = 14;
+  ctx.fillStyle = bg; ctx.fill(); ctx.shadowBlur = 0; outline(ctx, "#0d0014", 3);
+  // Skull face on ball
+  ctx.fillStyle = "rgba(200,150,255,0.5)";
+  ctx.beginPath(); ctx.arc(cx - 7, cy - 4, 4, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(cx + 7, cy - 4, 4, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = "rgba(0,0,0,0.7)";
+  ctx.beginPath(); ctx.arc(cx - 7, cy - 4, 2.5, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(cx + 7, cy - 4, 2.5, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.roundRect(cx - 5, cy + 4, 10, 5, 2); ctx.fill();
+  glow(ctx, cx, cy, r + 10, "rgba(140,40,255,0.25)");
+}
+
+// ─── SPEAR SHAFTS ─────────────────────────────────────────────────────────────
+
+function drawSpearShaftWood(ctx: CanvasRenderingContext2D) {
+  const cx = 64, top = 10, bot = 118, hw = 5;
+  ctx.beginPath(); ctx.roundRect(cx - hw, top, hw * 2, bot - top, 2);
+  const lg = ctx.createLinearGradient(cx - hw, 0, cx + hw, 0);
+  lg.addColorStop(0, "#3e2210"); lg.addColorStop(0.4, "#7a4820"); lg.addColorStop(0.7, "#a06030"); lg.addColorStop(1, "#3e2210");
+  ctx.fillStyle = lg; ctx.fill(); outline(ctx, "#0d0800", 3);
+  // Grain lines
+  ctx.strokeStyle = "rgba(60,30,10,0.4)"; ctx.lineWidth = 1;
+  for (const gx of [cx - 2, cx + 2]) {
+    ctx.beginPath(); ctx.moveTo(gx, top + 12); ctx.lineTo(gx, bot - 14); ctx.stroke();
+  }
+  // Iron ferrule caps
+  for (const [fy, fh] of [[top, 14], [bot - 14, 14]]) {
+    ctx.beginPath(); ctx.roundRect(cx - hw - 1, fy, hw * 2 + 2, fh, 1);
+    const fg = ctx.createLinearGradient(0, fy, 0, fy + fh);
+    fg.addColorStop(0, "#c0c0c0"); fg.addColorStop(0.5, "#e8e8e8"); fg.addColorStop(1, "#606060");
+    ctx.fillStyle = fg; ctx.fill(); outline(ctx, "#111", 2);
+  }
+  // Middle band
+  ctx.beginPath(); ctx.roundRect(cx - hw - 1, (top + bot) / 2 - 5, hw * 2 + 2, 10, 1);
+  ctx.fillStyle = "#808080"; ctx.fill(); outline(ctx, "#111", 1.5);
+}
+
+function drawSpearShaftRune(ctx: CanvasRenderingContext2D) {
+  const cx = 64, top = 10, bot = 118, hw = 6;
+  ctx.beginPath(); ctx.roundRect(cx - hw, top, hw * 2, bot - top, 2);
+  const lg = ctx.createLinearGradient(cx - hw, 0, cx + hw, 0);
+  lg.addColorStop(0, "#0d0800"); lg.addColorStop(0.4, "#2a1808"); lg.addColorStop(0.7, "#3a2010"); lg.addColorStop(1, "#0d0800");
+  ctx.fillStyle = lg; ctx.fill(); outline(ctx, "#050400", 3);
+  // Glowing gold runes carved along shaft
+  ctx.strokeStyle = "#f9c825"; ctx.lineWidth = 1.2;
+  for (let ry = top + 18; ry < bot - 12; ry += 18) {
+    rune(ctx, cx, ry, 4, "#f9c825");
+  }
+  // Gold end caps
+  for (const [fy, fh] of [[top, 12], [bot - 12, 12]]) {
+    ctx.beginPath(); ctx.roundRect(cx - hw - 1, fy, hw * 2 + 2, fh, 1);
+    const fg = ctx.createLinearGradient(0, fy, 0, fy + fh);
+    fg.addColorStop(0, "#fff176"); fg.addColorStop(1, "#bf6c00");
+    ctx.fillStyle = fg; ctx.fill(); outline(ctx, "#1a0a00", 2);
+  }
+}
+
+function drawSpearShaftBone(ctx: CanvasRenderingContext2D) {
+  const cx = 64, top = 10, bot = 118, hw = 6;
+  ctx.beginPath(); ctx.roundRect(cx - hw, top, hw * 2, bot - top, 2);
+  const lg = ctx.createLinearGradient(cx - hw, 0, cx + hw, 0);
+  lg.addColorStop(0, "#b09060"); lg.addColorStop(0.5, "#fffde7"); lg.addColorStop(1, "#b09060");
+  ctx.fillStyle = lg; ctx.fill(); outline(ctx, "#1a1000", 3);
+  // Bone grain
+  ctx.strokeStyle = "rgba(140,100,40,0.35)"; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(cx - 2, top + 12); ctx.lineTo(cx - 2, bot - 12); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(cx + 2, top + 16); ctx.lineTo(cx + 2, bot - 16); ctx.stroke();
+  // Sinew bindings
+  ctx.strokeStyle = "rgba(120,80,20,0.6)"; ctx.lineWidth = 2;
+  for (let by = top + 15; by < bot - 10; by += 22) {
+    ctx.beginPath(); ctx.moveTo(cx - hw, by); ctx.lineTo(cx + hw, by + 6); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(cx + hw, by + 6); ctx.lineTo(cx - hw, by + 12); ctx.stroke();
+  }
+  // Bone knuckle joints
+  for (const jy of [top + 12, (top + bot) / 2, bot - 12]) {
+    ctx.beginPath(); ctx.ellipse(cx, jy, hw + 2, 5, 0, 0, Math.PI * 2);
+    ctx.fillStyle = "#f5f0dc"; ctx.fill(); outline(ctx, "#1a1000", 1.5);
+  }
+}
+
 // ─── PART REGISTRY ────────────────────────────────────────────────────────────
 
 export const ALL_PARTS: WeaponPart[] = [
@@ -1282,6 +1730,35 @@ export const ALL_PARTS: WeaponPart[] = [
   { id: "magical_crystal_fire_01", name: "Fire Crystal", category: "magical_crystal", material: "fire", rarity: "rare", tags: ["fire", "volcanic_biome"], draw: drawCrystalFire },
   { id: "magical_crystal_ice_02", name: "Ice Crystal", category: "magical_crystal", material: "ice", rarity: "rare", tags: ["ice", "tundra_biome"], draw: drawCrystalIce },
   { id: "magical_crystal_arcane_03", name: "Arcane Crystal", category: "magical_crystal", material: "arcane", rarity: "epic", tags: ["magical", "any_biome"], draw: drawCrystalArcane },
+
+  // DAGGER BLADES
+  { id: "dagger_blade_iron_01", name: "Iron Dirk", category: "dagger_blade", material: "iron", rarity: "common", tags: ["physical", "any_biome"], draw: drawDaggerBladeIron },
+  { id: "dagger_blade_shadow_02", name: "Shadow Assassin Blade", category: "dagger_blade", material: "shadow", rarity: "rare", tags: ["physical", "rogue_faction"], draw: drawDaggerBladeShadow },
+  { id: "dagger_blade_gold_03", name: "Ornate Gold Stiletto", category: "dagger_blade", material: "gold", rarity: "legendary", tags: ["physical", "royal_faction"], draw: drawDaggerBladeGold },
+
+  // BOW LIMBS
+  { id: "bow_limb_wood_01", name: "Wood Recurve Bow", category: "bow_limb", material: "wood", rarity: "common", tags: ["physical", "forest_biome"], draw: drawBowLimbWood },
+  { id: "bow_limb_crystal_02", name: "Crystal Ice Bow", category: "bow_limb", material: "crystal", rarity: "rare", tags: ["ice", "tundra_biome"], draw: drawBowLimbCrystal },
+  { id: "bow_limb_void_03", name: "Void Shadowbow", category: "bow_limb", material: "void", rarity: "epic", tags: ["magical", "void_biome"], draw: drawBowLimbVoid },
+
+  // BOW STRINGS
+  { id: "bow_string_sinew_01", name: "Sinew Bowstring", category: "bow_string", material: "bone", rarity: "common", tags: ["physical", "any_biome"], draw: drawBowStringSinew },
+  { id: "bow_string_arcane_02", name: "Arcane Energy String", category: "bow_string", material: "crystal", rarity: "epic", tags: ["magical", "any_biome"], draw: drawBowStringArcane },
+
+  // KNUCKLES
+  { id: "knuckle_iron_01", name: "Iron Brass Knuckles", category: "knuckle", material: "iron", rarity: "common", tags: ["physical", "any_biome"], draw: drawKnuckleIron },
+  { id: "knuckle_void_02", name: "Void Spike Knuckles", category: "knuckle", material: "void", rarity: "epic", tags: ["magical", "void_biome"], draw: drawKnuckleVoid },
+  { id: "knuckle_gold_03", name: "Ornate Gold Knuckles", category: "knuckle", material: "gold", rarity: "legendary", tags: ["physical", "royal_faction"], draw: drawKnuckleGold },
+
+  // MACE HEADS
+  { id: "mace_head_iron_01", name: "Iron Spiked Mace", category: "mace_head", material: "iron", rarity: "common", tags: ["physical", "any_biome"], draw: drawMaceHeadIron },
+  { id: "mace_head_fire_02", name: "Blazing Fire Mace", category: "mace_head", material: "fire", rarity: "epic", tags: ["fire", "volcanic_biome"], draw: drawMaceHeadFire },
+  { id: "mace_head_void_03", name: "Void Skull Mace", category: "mace_head", material: "void", rarity: "legendary", tags: ["magical", "void_biome"], draw: drawMaceHeadVoid },
+
+  // SPEAR SHAFTS
+  { id: "spear_shaft_wood_01", name: "Iron-Capped Wood Shaft", category: "spear_shaft", material: "wood", rarity: "common", tags: ["physical", "any_biome"], draw: drawSpearShaftWood },
+  { id: "spear_shaft_rune_02", name: "Rune-Carved Dark Shaft", category: "spear_shaft", material: "wood", rarity: "rare", tags: ["magical", "ruins_biome"], draw: drawSpearShaftRune },
+  { id: "spear_shaft_bone_03", name: "Sinew-Bound Bone Shaft", category: "spear_shaft", material: "bone", rarity: "uncommon", tags: ["physical", "undead_faction"], draw: drawSpearShaftBone },
 ];
 
 export const PART_CATEGORIES: Record<string, WeaponPart[]> = {
@@ -1293,9 +1770,15 @@ export const PART_CATEGORIES: Record<string, WeaponPart[]> = {
   axe_handle: ALL_PARTS.filter(p => p.category === "axe_handle"),
   hammer_head: ALL_PARTS.filter(p => p.category === "hammer_head"),
   spear_tip: ALL_PARTS.filter(p => p.category === "spear_tip"),
+  spear_shaft: ALL_PARTS.filter(p => p.category === "spear_shaft"),
   staff_head: ALL_PARTS.filter(p => p.category === "staff_head"),
   shield: ALL_PARTS.filter(p => p.category === "shield"),
   magical_crystal: ALL_PARTS.filter(p => p.category === "magical_crystal"),
+  dagger_blade: ALL_PARTS.filter(p => p.category === "dagger_blade"),
+  bow_limb: ALL_PARTS.filter(p => p.category === "bow_limb"),
+  bow_string: ALL_PARTS.filter(p => p.category === "bow_string"),
+  knuckle: ALL_PARTS.filter(p => p.category === "knuckle"),
+  mace_head: ALL_PARTS.filter(p => p.category === "mace_head"),
 };
 
 export function renderPartToCanvas(part: WeaponPart): HTMLCanvasElement {

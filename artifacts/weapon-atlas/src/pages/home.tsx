@@ -84,16 +84,21 @@ export default function Home() {
   const [activeTab, setActiveTab] = useState("All");
   const [selectedPartId, setSelectedPartId] = useState<string | null>(null);
 
-  const tabs = ["All", "Swords", "Axes", "Hammers", "Staffs", "Shields", "Crystals"];
+  const tabs = ["All", "Swords", "Daggers", "Axes", "Hammers", "Maces", "Spears", "Bows", "Knuckles", "Staffs", "Shields", "Crystals"];
 
   const filteredParts = ALL_PARTS.filter(p => {
     const matchesSearch = p.name.toLowerCase().includes(search.toLowerCase()) || p.id.toLowerCase().includes(search.toLowerCase());
     let matchesTab = true;
-    if (activeTab === "Swords") matchesTab = p.category.includes("sword");
-    else if (activeTab === "Axes") matchesTab = p.category.includes("axe");
-    else if (activeTab === "Hammers") matchesTab = p.category.includes("hammer");
-    else if (activeTab === "Staffs") matchesTab = p.category.includes("staff") || p.category.includes("spear");
-    else if (activeTab === "Shields") matchesTab = p.category.includes("shield");
+    if (activeTab === "Swords")   matchesTab = p.category.includes("sword");
+    else if (activeTab === "Daggers")  matchesTab = p.category.includes("dagger");
+    else if (activeTab === "Axes")     matchesTab = p.category.includes("axe");
+    else if (activeTab === "Hammers")  matchesTab = p.category.includes("hammer");
+    else if (activeTab === "Maces")    matchesTab = p.category.includes("mace");
+    else if (activeTab === "Spears")   matchesTab = p.category.includes("spear");
+    else if (activeTab === "Bows")     matchesTab = p.category.includes("bow");
+    else if (activeTab === "Knuckles") matchesTab = p.category.includes("knuckle");
+    else if (activeTab === "Staffs")   matchesTab = p.category.includes("staff");
+    else if (activeTab === "Shields")  matchesTab = p.category.includes("shield");
     else if (activeTab === "Crystals") matchesTab = p.category.includes("crystal");
 
     return matchesSearch && matchesTab;
