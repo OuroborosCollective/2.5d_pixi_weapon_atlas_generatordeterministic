@@ -1,168 +1,202 @@
-import { useState, useRef, useEffect } from "react";
-import { PART_CATEGORIES, renderWeaponToCanvas } from "@/lib/weaponRenderer";
+import { useState, useEffect, useRef } from "react";
+import { PART_CATEGORIES, ALL_PARTS, renderPartToCanvas, WeaponPart } from "@/lib/weaponRenderer";
 import { exportZip } from "@/lib/zipExporter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
-import { Download, RefreshCw, Lock, Unlock } from "lucide-react";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Search, Download, Layers } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
-export default function Home() {
-  const [seed, setSeed] = useState<number>(12345);
-  const [seedLocked, setSeedLocked] = useState(false);
-  const [rarity, setRarity] = useState("common");
-  
-  const [selectedParts, setSelectedParts] = useState<Record<string, any>>({
-    sword_blade: PART_CATEGORIES.sword_blade[0],
-    sword_guard: PART_CATEGORIES.sword_guard[0],
-    sword_handle: PART_CATEGORIES.sword_handle[0],
-    sword_pommel: PART_CATEGORIES.sword_pommel[0],
-  });
-
+function PartThumbnail({ part, isSelected, onClick }: { part: WeaponPart, isSelected: boolean, onClick: () => void }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
     if (canvasRef.current) {
       const ctx = canvasRef.current.getContext("2d");
       if (ctx) {
-        renderWeaponToCanvas(ctx, Object.values(selectedParts), seed);
+        ctx.clearRect(0, 0, 64, 64);
+        ctx.save();
+        ctx.scale(0.5, 0.5); // Scale 128 down to 64
+        part.draw(ctx);
+        ctx.restore();
       }
     }
-  }, [selectedParts, seed]);
+  }, [part]);
 
-  const handleRoll = () => {
-    if (!seedLocked) {
-      setSeed(Math.floor(Math.random() * 1000000));
-    }
+  const rarityColors: Record<string, string> = {
+    common: "bg-gray-500",
+    uncommon: "bg-green-500",
+    rare: "bg-blue-500",
+    epic: "bg-purple-500",
+    legendary: "bg-orange-500"
   };
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <div 
+          onClick={onClick}
+          className={`relative flex flex-col items-center p-2 rounded-lg border-2 cursor-pointer transition-all ${isSelected ? 'border-amber-500 bg-amber-500/10' : 'border-border bg-card hover:border-amber-500/50 hover:bg-accent'}`}
+        >
+          <canvas ref={canvasRef} width={64} height={64} className="mb-2 drop-shadow-md" />
+          <span className="text-[10px] font-medium text-center truncate w-full text-foreground">{part.name}</span>
+          <div className={`absolute top-1 right-1 w-2 h-2 rounded-full ${rarityColors[part.rarity] || "bg-gray-500"}`} />
+        </div>
+      </TooltipTrigger>
+      <TooltipContent>
+        <div className="text-xs">
+          <p className="font-bold">{part.name}</p>
+          <p className="text-muted-foreground">{part.id}</p>
+          <p className="capitalize text-amber-500">{part.rarity}</p>
+        </div>
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
+function LargePartView({ part }: { part: WeaponPart }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  useEffect(() => {
+    if (canvasRef.current) {
+      const ctx = canvasRef.current.getContext("2d");
+      if (ctx) {
+        ctx.clearRect(0, 0, 128, 128);
+        part.draw(ctx);
+      }
+    }
+  }, [part]);
+
+  return (
+    <div className="relative group cursor-crosshair">
+      <div className="absolute inset-0 bg-amber-500/0 group-hover:bg-amber-500/10 transition-colors rounded-xl border border-transparent group-hover:border-amber-500/30 z-0" />
+      <canvas ref={canvasRef} width={128} height={128} className="relative z-10 drop-shadow-[0_0_8px_rgba(0,0,0,0.5)] group-hover:drop-shadow-[0_0_12px_rgba(245,158,11,0.4)] transition-all" />
+      <div className="absolute bottom-[-24px] left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap bg-black/80 px-2 py-1 rounded text-[10px] text-amber-400 z-20 pointer-events-none">
+        {part.id}
+      </div>
+    </div>
+  );
+}
+
+export default function Home() {
+  const [search, setSearch] = useState("");
+  const [activeTab, setActiveTab] = useState("All");
+  const [selectedPartId, setSelectedPartId] = useState<string | null>(null);
+
+  const tabs = ["All", "Swords", "Axes", "Hammers", "Staffs", "Shields", "Crystals"];
+
+  const filteredParts = ALL_PARTS.filter(p => {
+    const matchesSearch = p.name.toLowerCase().includes(search.toLowerCase()) || p.id.toLowerCase().includes(search.toLowerCase());
+    let matchesTab = true;
+    if (activeTab === "Swords") matchesTab = p.category.includes("sword");
+    else if (activeTab === "Axes") matchesTab = p.category.includes("axe");
+    else if (activeTab === "Hammers") matchesTab = p.category.includes("hammer");
+    else if (activeTab === "Staffs") matchesTab = p.category.includes("staff") || p.category.includes("spear");
+    else if (activeTab === "Shields") matchesTab = p.category.includes("shield");
+    else if (activeTab === "Crystals") matchesTab = p.category.includes("crystal");
+
+    return matchesSearch && matchesTab;
+  });
 
   const handleExport = async () => {
     try {
-      await exportZip(seed);
+      await exportZip();
     } catch (e) {
       console.error(e);
     }
   };
 
   return (
-    <div className="flex h-screen w-full bg-background text-foreground overflow-hidden">
-      {/* LEFT PANEL */}
-      <div className="w-64 border-r border-border bg-card flex flex-col">
-        <div className="p-4 border-b border-border">
-          <h2 className="text-lg font-bold text-primary tracking-wider uppercase">Part Browser</h2>
-        </div>
-        <ScrollArea className="flex-1 p-4">
-          <div className="space-y-6">
-            {Object.entries(PART_CATEGORIES).map(([cat, parts]) => (
-              <div key={cat} className="space-y-2">
-                <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-widest">{cat.replace("_", " ")}</h3>
-                <div className="space-y-1">
-                  {parts.map(part => (
-                    <div 
-                      key={part.id}
-                      onClick={() => setSelectedParts(prev => ({ ...prev, [cat]: part }))}
-                      className={`px-3 py-2 text-sm rounded-md cursor-pointer transition-colors flex items-center justify-between
-                        ${selectedParts[cat]?.id === part.id ? "bg-primary/20 text-primary border border-primary/30" : "hover:bg-accent hover:text-accent-foreground"}`}
-                    >
-                      <span>{part.name}</span>
-                      <Badge variant="outline" className="text-[10px]">{part.material}</Badge>
-                    </div>
-                  ))}
-                </div>
-              </div>
+    <div className="flex h-screen w-full bg-[#0a0a0a] text-zinc-300 font-sans overflow-hidden selection:bg-amber-500/30">
+      {/* LEFT PANEL - BROWSER */}
+      <div className="w-[340px] flex flex-col border-r border-zinc-800 bg-[#111111] z-10 shadow-xl">
+        <div className="p-4 border-b border-zinc-800">
+          <div className="relative mb-4">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+            <Input 
+              placeholder="Search parts..." 
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              className="pl-9 bg-zinc-900 border-zinc-800 text-zinc-100 placeholder:text-zinc-600 focus-visible:ring-amber-500/50"
+            />
+          </div>
+          <div className="flex flex-wrap gap-1">
+            {tabs.map(tab => (
+              <button
+                key={tab}
+                onClick={() => setActiveTab(tab)}
+                className={`px-3 py-1 text-[11px] font-medium rounded-full transition-colors ${activeTab === tab ? 'bg-amber-500 text-black' : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-zinc-200'}`}
+              >
+                {tab}
+              </button>
             ))}
           </div>
+        </div>
+
+        <ScrollArea className="flex-1 p-4">
+          <div className="grid grid-cols-3 gap-3">
+            {filteredParts.map(part => (
+              <PartThumbnail 
+                key={part.id} 
+                part={part} 
+                isSelected={selectedPartId === part.id}
+                onClick={() => setSelectedPartId(part.id)}
+              />
+            ))}
+          </div>
+          {filteredParts.length === 0 && (
+            <div className="text-center text-zinc-500 mt-10 text-sm">No parts found.</div>
+          )}
         </ScrollArea>
       </div>
 
-      {/* CENTER PANEL */}
-      <div className="flex-1 flex flex-col items-center justify-center p-6 relative">
-        <div className="absolute top-6 left-6 right-6 flex justify-between items-center z-10">
-          <div className="flex gap-2">
-            {["cursed_fire_sword", "ancient_forest_axe", "frostborn_staff", "void_hammer", "royal_guard_blade"].map(preset => (
-              <Badge key={preset} variant="secondary" className="cursor-pointer hover:bg-secondary/80">{preset}</Badge>
-            ))}
+      {/* MAIN PANEL - ATLAS VIEW */}
+      <div className="flex-1 flex flex-col bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] bg-zinc-950 relative">
+        <div className="absolute inset-0 bg-gradient-to-br from-zinc-950/80 to-zinc-900/90 pointer-events-none" />
+        
+        <header className="relative z-10 p-6 flex justify-between items-center border-b border-zinc-800/50 bg-black/40 backdrop-blur-sm">
+          <div>
+            <h1 className="text-2xl font-black text-amber-500 tracking-wider flex items-center gap-2">
+              <Layers className="w-6 h-6" /> WEAPON ATLAS
+            </h1>
+            <p className="text-xs text-zinc-400 mt-1 tracking-widest uppercase">Modular Parts • PixiJS Ready</p>
           </div>
-        </div>
-
-        <div className="relative w-[512px] h-[512px] border border-border bg-black/50 rounded-xl shadow-2xl flex items-center justify-center mb-8 isolate overflow-hidden group">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(60,40,20,0.4)_0%,transparent_70%)] pointer-events-none" />
-          {/* Grid background */}
-          <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.05)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.05)_1px,transparent_1px)] bg-[size:32px_32px] pointer-events-none opacity-20" />
           
-          <canvas 
-            ref={canvasRef} 
-            width={512} 
-            height={512} 
-            className="relative z-10 filter drop-shadow-[0_0_15px_rgba(200,120,30,0.3)]"
-          />
-        </div>
-
-        <div className="flex items-center gap-4 w-full max-w-[512px] bg-card p-4 rounded-lg border border-border">
-          <div className="flex-1 flex gap-2">
-            <Input 
-              value={seed} 
-              onChange={e => setSeed(Number(e.target.value) || 0)} 
-              disabled={seedLocked}
-              className="font-mono text-primary"
-            />
-            <Button variant="outline" size="icon" onClick={() => setSeedLocked(!seedLocked)}>
-              {seedLocked ? <Lock size={16} /> : <Unlock size={16} />}
+          <div className="flex items-center gap-4">
+            <Badge variant="outline" className="border-zinc-700 text-zinc-400 px-3 py-1">
+              {ALL_PARTS.length} Parts
+            </Badge>
+            <Button onClick={handleExport} className="bg-amber-600 hover:bg-amber-500 text-black font-bold border-none shadow-[0_0_15px_rgba(217,119,6,0.3)] hover:shadow-[0_0_20px_rgba(217,119,6,0.5)] transition-all">
+              <Download className="w-4 h-4 mr-2" /> Export ZIP
             </Button>
           </div>
-          
-          <Select value={rarity} onValueChange={setRarity}>
-            <SelectTrigger className="w-[140px]">
-              <SelectValue placeholder="Rarity" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="common">Common</SelectItem>
-              <SelectItem value="uncommon">Uncommon</SelectItem>
-              <SelectItem value="rare">Rare</SelectItem>
-              <SelectItem value="epic">Epic</SelectItem>
-              <SelectItem value="legendary">Legendary</SelectItem>
-              <SelectItem value="mythic">Mythic</SelectItem>
-            </SelectContent>
-          </Select>
+        </header>
 
-          <Button onClick={handleRoll} variant="default" className="gap-2 bg-primary text-primary-foreground hover:bg-primary/90">
-            <RefreshCw size={16} />
-            Roll
-          </Button>
-        </div>
-      </div>
-
-      {/* RIGHT PANEL */}
-      <div className="w-80 border-l border-border bg-card flex flex-col">
-        <div className="p-4 border-b border-border flex items-center justify-between">
-          <h2 className="text-lg font-bold text-primary tracking-wider uppercase">Export</h2>
-        </div>
-        <div className="p-4 flex flex-col gap-6 flex-1">
-          <div className="space-y-2">
-            <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-widest">Atlas Preview</h3>
-            <div className="aspect-square border border-border bg-black/30 rounded-md relative flex items-center justify-center overflow-hidden">
-              {/* Mini version of the canvas or a packed grid placeholder */}
-              <div className="text-xs text-muted-foreground">Atlas Grid Preview</div>
-            </div>
+        <ScrollArea className="flex-1 relative z-10 p-8">
+          <div className="max-w-6xl mx-auto space-y-12 pb-20">
+            {Object.entries(PART_CATEGORIES).map(([catKey, parts]) => {
+              if (parts.length === 0) return null;
+              
+              const title = catKey.replace("_", " ").toUpperCase();
+              
+              return (
+                <section key={catKey} className="animate-in fade-in slide-in-from-bottom-4 duration-700 ease-out">
+                  <div className="flex items-center gap-4 mb-6">
+                    <h2 className="text-lg font-bold text-zinc-200 tracking-widest">{title}</h2>
+                    <div className="h-px bg-gradient-to-r from-zinc-800 to-transparent flex-1" />
+                  </div>
+                  
+                  <div className="flex flex-wrap gap-8">
+                    {parts.map(part => (
+                      <LargePartView key={part.id} part={part} />
+                    ))}
+                  </div>
+                </section>
+              );
+            })}
           </div>
-
-          <div className="space-y-2 flex-1">
-            <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-widest">Metadata</h3>
-            <div className="bg-black/50 border border-border rounded-md p-3 font-mono text-[10px] text-muted-foreground h-full overflow-auto">
-              {JSON.stringify({
-                seed,
-                rarity,
-                parts: Object.values(selectedParts).map(p => p?.id)
-              }, null, 2)}
-            </div>
-          </div>
-
-          <Button onClick={handleExport} size="lg" className="w-full gap-2 bg-primary text-primary-foreground hover:bg-primary/90 h-14 text-lg">
-            <Download size={20} />
-            Export ZIP
-          </Button>
-        </div>
+        </ScrollArea>
       </div>
     </div>
   );
