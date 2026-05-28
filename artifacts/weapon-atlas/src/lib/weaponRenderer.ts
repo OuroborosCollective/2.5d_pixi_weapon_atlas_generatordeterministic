@@ -10,64 +10,54 @@ export interface WeaponPart {
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
-function outline(ctx: CanvasRenderingContext2D, color = "#0d0d0d", lw = 3, soft = false) {
 function outline(ctx: CanvasRenderingContext2D, color = "#0d0d0d", lw = 3.5) {
   ctx.save();
   ctx.strokeStyle = color;
   ctx.lineWidth = lw;
   ctx.lineJoin = "round";
   ctx.lineCap = "round";
-  ctx.shadowColor = "rgba(0,0,0,0.5)";
-  ctx.shadowBlur = 2;
   ctx.stroke();
   ctx.restore();
 }
 
-function rimLight(ctx: CanvasRenderingContext2D, color = "rgba(255,255,255,0.4)", lw = 2.5) {
+function ambientOcclusion(ctx: CanvasRenderingContext2D, pathFn: () => void, opacity = 0.3) {
   ctx.save();
+  pathFn();
+  ctx.clip();
+  ctx.shadowColor = "black";
+  ctx.shadowBlur = 12;
+  ctx.strokeStyle = `rgba(0,0,0,${opacity})`;
+  ctx.lineWidth = 10;
+  ctx.stroke();
+  ctx.restore();
+}
+
+function painterlyTexture(ctx: CanvasRenderingContext2D, pathFn: () => void, color = "rgba(0,0,0,0.1)") {
+  ctx.save();
+  pathFn();
+  ctx.clip();
+  ctx.fillStyle = color;
+  for (let i = 0; i < 80; i++) {
+    const x = Math.random() * 128;
+    const y = Math.random() * 128;
+    const w = 10 + Math.random() * 20;
+    const h = 2 + Math.random() * 5;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(Math.random() * Math.PI);
+    ctx.fillRect(-w / 2, -h / 2, w, h);
+    ctx.restore();
+  }
+  ctx.restore();
+}
+
+function innerGlow(ctx: CanvasRenderingContext2D, pathFn: () => void, color = "rgba(255,255,255,0.2)", size = 8) {
+  ctx.save();
+  pathFn();
+  ctx.clip();
   ctx.strokeStyle = color;
-  ctx.lineWidth = lw;
-  ctx.lineJoin = "round";
-  ctx.stroke();
-  ctx.restore();
-}
-
-function addNoise(ctx: CanvasRenderingContext2D, opacity = 0.05) {
-  ctx.save();
-  ctx.globalCompositeOperation = "overlay";
-  for (let i = 0; i < 500; i++) {
-    const x = Math.random() * 128;
-    const y = Math.random() * 128;
-    ctx.fillStyle = Math.random() > 0.5 ? `rgba(255,255,255,${opacity})` : `rgba(0,0,0,${opacity})`;
-    ctx.fillRect(x, y, 1, 1);
-  }
-  ctx.restore();
-}
-
-function addGrit(ctx: CanvasRenderingContext2D, opacity = 0.12) {
-  ctx.save();
-  for (let i = 0; i < 40; i++) {
-    const x = Math.random() * 128;
-    const y = Math.random() * 128;
-    const s = 0.5 + Math.random() * 1.5;
-    ctx.fillStyle = `rgba(0,0,0,${opacity})`;
-    ctx.fillRect(x, y, s, s);
-  }
-  ctx.restore();
-}
-
-function shine(ctx: CanvasRenderingContext2D, x1: number, y1: number, x2: number, y2: number, alpha = 0.6) {
-  ctx.save();
-  const g = ctx.createLinearGradient(x1, y1, x2, y2);
-  g.addColorStop(0, `rgba(255,255,255,0)`);
-  g.addColorStop(0.5, `rgba(255,255,255,${alpha})`);
-  g.addColorStop(1, `rgba(255,255,255,0)`);
-  ctx.strokeStyle = g;
-  ctx.lineWidth = 2.5;
-  ctx.lineCap = "round";
-  ctx.beginPath();
-  ctx.moveTo(x1, y1);
-  ctx.lineTo(x2, y2);
+  ctx.lineWidth = size;
+  ctx.globalCompositeOperation = "screen";
   ctx.stroke();
   ctx.restore();
 }
@@ -93,6 +83,22 @@ function addNoise(ctx: CanvasRenderingContext2D, opacity = 0.05) {
     ctx.fillStyle = Math.random() > 0.5 ? "#fff" : "#000";
     ctx.fillRect(x, y, 1, 1);
   }
+  ctx.restore();
+}
+
+function shine(ctx: CanvasRenderingContext2D, x1: number, y1: number, x2: number, y2: number, alpha = 0.6) {
+  ctx.save();
+  const g = ctx.createLinearGradient(x1, y1, x2, y2);
+  g.addColorStop(0, `rgba(255,255,255,0)`);
+  g.addColorStop(0.5, `rgba(255,255,255,${alpha})`);
+  g.addColorStop(1, `rgba(255,255,255,0)`);
+  ctx.strokeStyle = g;
+  ctx.lineWidth = 2.5;
+  ctx.lineCap = "round";
+  ctx.beginPath();
+  ctx.moveTo(x1, y1);
+  ctx.lineTo(x2, y2);
+  ctx.stroke();
   ctx.restore();
 }
 
@@ -1063,9 +1069,14 @@ function drawAxeHeadGold(ctx: CanvasRenderingContext2D) {
   lg.addColorStop(0, "#827717"); lg.addColorStop(0.4, "#fbc02d"); lg.addColorStop(0.6, "#fff59d"); lg.addColorStop(1, "#827717");
   ctx.fillStyle = lg; ctx.fill();
 
+  ctx.save(); path(); ctx.clip();
+  ambientOcclusion(ctx, path, 0.3);
+  painterlyTexture(ctx, path, "rgba(100,70,0,0.15)");
   addNoise(ctx, 0.05);
-  outline(ctx, "#1a0a00", 3.5, true);
-  rimLight(ctx, path, "rgba(255,255,255,0.3)", 5);
+  rimLight(ctx, path, "rgba(255,255,255,0.4)", 6);
+  ctx.restore();
+
+  outline(ctx, "#1a0a00", 3.8, true);
 
   // Scroll decorations
   ctx.strokeStyle = "rgba(130,119,23,0.6)"; ctx.lineWidth = 1.8;
@@ -1094,9 +1105,14 @@ function drawAxeHeadBone(ctx: CanvasRenderingContext2D) {
   lg.addColorStop(0, "#bdbdbd"); lg.addColorStop(0.5, "#eeeeee"); lg.addColorStop(1, "#9e9e9e");
   ctx.fillStyle = lg; ctx.fill();
 
-  addGrit(ctx, path, 0.2);
-  outline(ctx, "#212121", 3.5, true);
-  rimLight(ctx, path, "rgba(255,255,255,0.4)", 5);
+  ctx.save(); path(); ctx.clip();
+  ambientOcclusion(ctx, path, 0.25);
+  painterlyTexture(ctx, path, "rgba(80,60,40,0.1)");
+  addGrit(ctx, path, 0.25);
+  rimLight(ctx, path, "rgba(255,255,255,0.45)", 5);
+  ctx.restore();
+
+  outline(ctx, "#212121", 3.8, true);
 
   // Bone grain
   ctx.strokeStyle = "rgba(0,0,0,0.15)"; ctx.lineWidth = 1;
@@ -1603,7 +1619,6 @@ function drawShieldTowerVoid(ctx: CanvasRenderingContext2D) {
 
 function drawCrystalFire(ctx: CanvasRenderingContext2D) {
   const cx = 64, top = 16, bot = 106;
-  // Hexagonal crystal
   const path = () => {
     ctx.beginPath();
     ctx.moveTo(cx, top);
@@ -1614,28 +1629,30 @@ function drawCrystalFire(ctx: CanvasRenderingContext2D) {
     ctx.lineTo(cx - 18, top + 20);
     ctx.closePath();
   };
-  function hexCrystal(col1: string, col2: string, col3: string) {
-    path();
-    const lg = ctx.createLinearGradient(cx - 18, 0, cx + 18, 0);
-    lg.addColorStop(0, col1); lg.addColorStop(0.4, col2); lg.addColorStop(0.6, "#ffffff"); lg.addColorStop(1, col3);
-    ctx.fillStyle = lg; ctx.fill();
+  path();
+  const lg = ctx.createLinearGradient(cx - 18, 0, cx + 18, 0);
+  lg.addColorStop(0, "#b71c1c"); lg.addColorStop(0.4, "#ff5722"); lg.addColorStop(0.6, "#ffffff"); lg.addColorStop(1, "#3e2723");
+  ctx.fillStyle = lg; ctx.fill();
 
-    addNoise(ctx, 0.1);
-    outline(ctx, "#210000", 3, true);
-    rimLight(ctx, path, "rgba(255,200,100,0.4)", 6);
+  ctx.save(); path(); ctx.clip();
+  ambientOcclusion(ctx, path, 0.4);
+  painterlyTexture(ctx, path, "rgba(255,100,0,0.2)");
+  innerGlow(ctx, path, "rgba(255,200,50,0.3)", 8);
+  addNoise(ctx, 0.1);
+  rimLight(ctx, path, "rgba(255,255,255,0.45)", 6);
+  ctx.restore();
 
-    // Internal light vein
-    ctx.beginPath(); ctx.moveTo(cx, top + 10); ctx.lineTo(cx, bot - 10);
-    ctx.strokeStyle = "rgba(255,255,255,0.4)"; ctx.lineWidth = 3; ctx.stroke();
-    // Facet lines
-    ctx.strokeStyle = "rgba(255,255,255,0.3)"; ctx.lineWidth = 1.4;
-    ctx.beginPath(); ctx.moveTo(cx - 18, top + 20); ctx.lineTo(cx, top); ctx.lineTo(cx + 18, top + 20); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(cx - 18, bot - 20); ctx.lineTo(cx, bot); ctx.lineTo(cx + 18, bot - 20); ctx.stroke();
-  }
-  hexCrystal("#b71c1c", "#ff5722", "#3e2723");
+  outline(ctx, "#210000", 3.5);
+
+  // Facet lines
+  ctx.strokeStyle = "rgba(255,255,255,0.5)"; ctx.lineWidth = 1.4;
+  ctx.beginPath(); ctx.moveTo(cx - 18, top + 20); ctx.lineTo(cx, top); ctx.lineTo(cx + 18, top + 20); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(cx - 18, bot - 20); ctx.lineTo(cx, bot); ctx.lineTo(cx + 18, bot - 20); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(cx, top + 5); ctx.lineTo(cx, bot - 5); ctx.stroke();
+
   // Flame wisps
   ctx.fillStyle = "#ffeb3b";
-  for (const [fx, fy, fr] of [[cx - 20, top + 35, 6], [cx + 20, top + 55, 5], [cx - 18, top + 75, 5]]) {
+  for (const [fx, fy, fr] of [[cx - 22, top + 35, 6], [cx + 22, top + 55, 5], [cx - 20, top + 75, 5]]) {
     ctx.beginPath(); ctx.arc(fx, fy, fr, 0, Math.PI * 2);
     ctx.shadowColor = "#ffeb3b"; ctx.shadowBlur = 8;
     ctx.fill(); ctx.shadowBlur = 0;
@@ -1645,51 +1662,75 @@ function drawCrystalFire(ctx: CanvasRenderingContext2D) {
 
 function drawCrystalIce(ctx: CanvasRenderingContext2D) {
   const cx = 64, top = 16, bot = 106;
-  // Blue crystal
-  ctx.beginPath();
-  ctx.moveTo(cx, top); ctx.lineTo(cx + 18, top + 20); ctx.lineTo(cx + 18, bot - 20);
-  ctx.lineTo(cx, bot); ctx.lineTo(cx - 18, bot - 20); ctx.lineTo(cx - 18, top + 20); ctx.closePath();
+  const path = () => {
+    ctx.beginPath();
+    ctx.moveTo(cx, top); ctx.lineTo(cx + 18, top + 20); ctx.lineTo(cx + 18, bot - 20);
+    ctx.lineTo(cx, bot); ctx.lineTo(cx - 18, bot - 20); ctx.lineTo(cx - 18, top + 20); ctx.closePath();
+  };
+  path();
   const lg = ctx.createLinearGradient(cx - 18, 0, cx + 18, 0);
   lg.addColorStop(0, "#003366"); lg.addColorStop(0.35, "#4fc3f7"); lg.addColorStop(0.5, "#e1f5fe"); lg.addColorStop(0.65, "#0277bd"); lg.addColorStop(1, "#003366");
-  ctx.shadowColor = "#00c8ff"; ctx.shadowBlur = 16;
-  ctx.fillStyle = lg; ctx.fill(); ctx.shadowBlur = 0; outline(ctx, "#001a33", 3);
+  ctx.fillStyle = lg; ctx.fill();
+
+  ctx.save(); path(); ctx.clip();
+  ambientOcclusion(ctx, path, 0.35);
+  painterlyTexture(ctx, path, "rgba(100,200,255,0.2)");
+  innerGlow(ctx, path, "rgba(255,255,255,0.4)", 10);
+  addNoise(ctx, 0.08);
+  rimLight(ctx, path, "rgba(255,255,255,0.6)", 6);
+  ctx.restore();
+
+  outline(ctx, "#001a33", 3.5);
+
   // Facet lines
-  ctx.strokeStyle = "rgba(200,240,255,0.65)"; ctx.lineWidth = 1.5;
-  for (const [sx, sy, ex, ey] of [
-    [cx - 18, top + 20, cx, top], [cx, top, cx + 18, top + 20],
-    [cx - 18, bot - 20, cx, bot], [cx, bot, cx + 18, bot - 20],
-    [cx, top + 5, cx, bot - 5],
-  ]) { ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(ex, ey); ctx.stroke(); }
+  ctx.strokeStyle = "rgba(200,240,255,0.8)"; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(cx - 18, top + 20); ctx.lineTo(cx, top); ctx.lineTo(cx + 18, top + 20); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(cx - 18, bot - 20); ctx.lineTo(cx, bot); ctx.lineTo(cx + 18, bot - 20); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(cx, top + 5); ctx.lineTo(cx, bot - 5); ctx.stroke();
+
   // Ice shard halo
   ctx.strokeStyle = "rgba(180,230,255,0.6)"; ctx.lineWidth = 1;
   for (let a = 0; a < Math.PI * 2; a += Math.PI / 4) {
     const ix = cx + 24 * Math.cos(a); const iy = (top + bot) / 2 + 24 * Math.sin(a);
     ctx.beginPath(); ctx.moveTo(ix, iy); ctx.lineTo(ix + 8 * Math.cos(a), iy + 8 * Math.sin(a)); ctx.stroke();
   }
-  glow(ctx, cx, (top + bot) / 2, 30, "rgba(80,200,255,0.2)");
+  glow(ctx, cx, (top + bot) / 2, 40, "rgba(80,200,255,0.25)");
 }
 
 function drawCrystalArcane(ctx: CanvasRenderingContext2D) {
   const cx = 64, top = 16, bot = 106;
-  ctx.beginPath();
-  ctx.moveTo(cx, top); ctx.lineTo(cx + 18, top + 20); ctx.lineTo(cx + 18, bot - 20);
-  ctx.lineTo(cx, bot); ctx.lineTo(cx - 18, bot - 20); ctx.lineTo(cx - 18, top + 20); ctx.closePath();
+  const path = () => {
+    ctx.beginPath();
+    ctx.moveTo(cx, top); ctx.lineTo(cx + 18, top + 20); ctx.lineTo(cx + 18, bot - 20);
+    ctx.lineTo(cx, bot); ctx.lineTo(cx - 18, bot - 20); ctx.lineTo(cx - 18, top + 20); ctx.closePath();
+  };
+  path();
   const lg = ctx.createLinearGradient(cx - 18, 0, cx + 18, 0);
   lg.addColorStop(0, "#1a0033"); lg.addColorStop(0.35, "#7b1fa2"); lg.addColorStop(0.5, "#e1bee7"); lg.addColorStop(0.65, "#6a1b9a"); lg.addColorStop(1, "#1a0033");
-  ctx.shadowColor = "#c060ff"; ctx.shadowBlur = 18;
-  ctx.fillStyle = lg; ctx.fill(); ctx.shadowBlur = 0; outline(ctx, "#0d001a", 3);
-  ctx.strokeStyle = "rgba(220,160,255,0.65)"; ctx.lineWidth = 1.5;
-  for (const [sx, sy, ex, ey] of [
-    [cx - 18, top + 20, cx, top], [cx, top, cx + 18, top + 20],
-    [cx - 18, bot - 20, cx, bot], [cx, bot, cx + 18, bot - 20],
-    [cx, top + 5, cx, bot - 5],
-  ]) { ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(ex, ey); ctx.stroke(); }
+  ctx.fillStyle = lg; ctx.fill();
+
+  ctx.save(); path(); ctx.clip();
+  ambientOcclusion(ctx, path, 0.4);
+  painterlyTexture(ctx, path, "rgba(150,50,255,0.2)");
+  innerGlow(ctx, path, "rgba(220,150,255,0.3)", 8);
+  addNoise(ctx, 0.1);
+  rimLight(ctx, path, "rgba(255,255,255,0.5)", 6);
+  ctx.restore();
+
+  outline(ctx, "#0d001a", 3.5);
+
+  // Facet lines
+  ctx.strokeStyle = "rgba(220,160,255,0.7)"; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(cx - 18, top + 20); ctx.lineTo(cx, top); ctx.lineTo(cx + 18, top + 20); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(cx - 18, bot - 20); ctx.lineTo(cx, bot); ctx.lineTo(cx + 18, bot - 20); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(cx, top + 5); ctx.lineTo(cx, bot - 5); ctx.stroke();
+
   // Floating stars
   ctx.fillStyle = "rgba(255,220,255,0.8)";
   for (const [sx, sy, sr] of [[cx - 24, (top + bot) / 2 - 18, 2.5], [cx + 24, (top + bot) / 2 + 10, 2], [cx - 20, (top + bot) / 2 + 22, 2], [cx + 20, (top + bot) / 2 - 28, 1.8]]) {
     ctx.beginPath(); ctx.arc(sx, sy, sr, 0, Math.PI * 2); ctx.fill();
   }
-  glow(ctx, cx, (top + bot) / 2, 30, "rgba(180,80,255,0.25)");
+  glow(ctx, cx, (top + bot) / 2, 40, "rgba(180,80,255,0.3)");
 }
 
 // ─── DAGGER BLADES ───────────────────────────────────────────────────────────
