@@ -73,124 +73,82 @@ function outerGlow(ctx: CanvasRenderingContext2D, color: string, alpha: number, 
 }
 
 export function drawRarityAura(ctx: CanvasRenderingContext2D, rarity: RarityLevel): void {
+  ctx.save();
   switch (rarity) {
     case "common": {
-      // Barely there — faint white rim sparkle
-      particles(ctx, "#ffffff", 6, 50, 58, 1, 0.25);
-      glowRim(ctx, "#aaaaaa", 0.12, 4, 2);
+      glowRim(ctx, "#ffffff", 0.08, 4, 1);
+      particles(ctx, "#ffffff", 4, 52, 60, 1, 0.2);
       break;
     }
     case "uncommon": {
-      // Green outer glow rim + green sparkles
-      outerGlow(ctx, "rgba(0,200,60,0.18)", 1, 64);
-      glowRim(ctx, "#00c83c", 0.55, 10, 3);
-      particles(ctx, "#44ff88", 8, 50, 60, 1.8, 0.7);
+      outerGlow(ctx, "rgba(76,175,80,0.15)", 1, 64);
+      glowRim(ctx, "#4caf50", 0.4, 12, 3);
+      particles(ctx, "#a5d6a7", 10, 50, 62, 1.5, 0.6);
       break;
     }
     case "rare": {
-      // Blue pulsing rim + corner rays + blue particles
-      outerGlow(ctx, "rgba(0,112,221,0.22)", 1, 64);
-      glowRim(ctx, "#0070dd", 0.65, 14, 3.5);
-      rays(ctx, "#4ea8ff", 8, 10, 0.55);
-      particles(ctx, "#80c8ff", 12, 48, 60, 2, 0.75);
-      // Bright corner glints
-      ctx.save();
-      ctx.globalAlpha = 0.5;
-      for (const [cx2, cy2] of [[6, 6], [122, 6], [6, 122], [122, 122]]) {
-        ctx.beginPath(); ctx.arc(cx2, cy2, 3, 0, Math.PI * 2);
-        ctx.fillStyle = "#80c8ff"; ctx.shadowColor = "#0070dd"; ctx.shadowBlur = 8; ctx.fill();
+      outerGlow(ctx, "rgba(33,150,243,0.18)", 1, 64);
+      glowRim(ctx, "#2196f3", 0.5, 16, 4);
+      rays(ctx, "#90caf9", 8, 12, 0.4);
+      particles(ctx, "#bbdefb", 14, 48, 62, 2, 0.7);
+      for (const [x, y] of [[8, 8], [120, 8], [8, 120], [120, 120]]) {
+        ctx.beginPath(); ctx.arc(x, y, 3, 0, Math.PI * 2);
+        ctx.fillStyle = "#fff"; ctx.shadowColor = "#2196f3"; ctx.shadowBlur = 10; ctx.fill();
       }
-      ctx.restore();
       break;
     }
     case "epic": {
-      // Purple void rim glow + orbiting dim orbs + edge shimmer lines
-      outerGlow(ctx, "rgba(163,53,238,0.28)", 1, 64);
-      glowRim(ctx, "#a335ee", 0.7, 16, 4);
-      particles(ctx, "#cc88ff", 10, 50, 62, 2.5, 0.8);
-      // Orbiting larger orbs
-      ctx.save();
-      ctx.globalAlpha = 0.65;
+      outerGlow(ctx, "rgba(156,39,176,0.22)", 1, 64);
+      glowRim(ctx, "#9c27b0", 0.6, 20, 5);
+      particles(ctx, "#e1bee7", 12, 48, 62, 2.5, 0.7);
       for (let i = 0; i < 4; i++) {
         const a = (i / 4) * Math.PI * 2 + 0.78;
-        const x = CX + 55 * Math.cos(a); const y = CY + 55 * Math.sin(a);
-        ctx.beginPath(); ctx.arc(x, y, 4, 0, Math.PI * 2);
-        ctx.fillStyle = "#b060ff"; ctx.shadowColor = "#9030d0"; ctx.shadowBlur = 10; ctx.fill();
+        const x = CX + 56 * Math.cos(a), y = CY + 56 * Math.sin(a);
+        ctx.beginPath(); ctx.arc(x, y, 4.5, 0, Math.PI * 2);
+        ctx.fillStyle = "#f3e5f5"; ctx.shadowColor = "#9c27b0"; ctx.shadowBlur = 12; ctx.fill();
       }
-      ctx.restore();
-      // Corner arcane symbols
-      ctx.save();
-      ctx.globalAlpha = 0.5;
-      ctx.strokeStyle = "#a335ee"; ctx.lineWidth = 1.2; ctx.shadowColor = "#a335ee"; ctx.shadowBlur = 6;
-      for (const [ox, oy] of [[8, 8], [120, 8], [8, 120], [120, 120]]) {
-        ctx.beginPath(); ctx.arc(ox, oy, 5, 0, Math.PI * 2); ctx.stroke();
-        ctx.beginPath(); ctx.moveTo(ox - 4, oy); ctx.lineTo(ox + 4, oy); ctx.stroke();
-        ctx.beginPath(); ctx.moveTo(ox, oy - 4); ctx.lineTo(ox, oy + 4); ctx.stroke();
+      for (const [ox, oy] of [[10, 10], [118, 10], [10, 118], [118, 118]]) {
+        ctx.strokeStyle = "#9c27b0"; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(ox, oy, 6, 0, Math.PI * 2); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(ox - 5, oy); ctx.lineTo(ox + 5, oy); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(ox, oy - 5); ctx.lineTo(ox, oy + 5); ctx.stroke();
       }
-      ctx.restore();
       break;
     }
     case "legendary": {
-      // Bright gold star burst + gold rim + 16 rays + heavy glow
-      outerGlow(ctx, "rgba(255,128,0,0.32)", 1, 64);
-      glowRim(ctx, "#ff8000", 0.8, 20, 5);
-      rays(ctx, "#ffd060", 16, 14, 0.65);
-      particles(ctx, "#ffe080", 14, 48, 62, 2.2, 0.85);
-      // Central star gleam (4-pointed)
-      ctx.save();
-      ctx.globalAlpha = 0.4;
-      ctx.fillStyle = "#fffde0";
-      ctx.shadowColor = "#ffaa00"; ctx.shadowBlur = 18;
+      outerGlow(ctx, "rgba(255,152,0,0.25)", 1, 64);
+      glowRim(ctx, "#ff9800", 0.7, 24, 6);
+      rays(ctx, "#ffe082", 16, 18, 0.5);
+      particles(ctx, "#fff9c4", 18, 46, 62, 2.2, 0.8);
+      ctx.fillStyle = "#fffde7"; ctx.shadowColor = "#ff9800"; ctx.shadowBlur = 20;
       for (let i = 0; i < 4; i++) {
-        ctx.save();
-        ctx.translate(CX, CY);
-        ctx.rotate((i / 4) * Math.PI * 2);
-        ctx.beginPath();
-        ctx.moveTo(0, -62); ctx.lineTo(4, -10); ctx.lineTo(0, 0); ctx.lineTo(-4, -10);
-        ctx.closePath(); ctx.fill(); ctx.restore();
+        ctx.save(); ctx.translate(CX, CY); ctx.rotate((i / 4) * Math.PI * 2);
+        ctx.beginPath(); ctx.moveTo(0, -64); ctx.lineTo(5, -12); ctx.lineTo(0, 0); ctx.lineTo(-5, -12); ctx.closePath(); ctx.fill(); ctx.restore();
       }
-      ctx.restore();
-      // Corner golden diamonds
-      ctx.save();
-      ctx.globalAlpha = 0.7;
-      for (const [ox, oy] of [[6, 6], [122, 6], [6, 122], [122, 122]]) {
+      for (const [ox, oy] of [[8, 8], [120, 8], [8, 120], [120, 120]]) {
         ctx.save(); ctx.translate(ox, oy); ctx.rotate(Math.PI / 4);
-        ctx.fillStyle = "#ffcc00"; ctx.shadowColor = "#ff8000"; ctx.shadowBlur = 8;
-        ctx.fillRect(-3.5, -3.5, 7, 7); ctx.restore();
+        ctx.fillStyle = "#fff176"; ctx.shadowColor = "#ff9800"; ctx.shadowBlur = 10; ctx.fillRect(-4.5, -4.5, 9, 9); ctx.restore();
       }
-      ctx.restore();
       break;
     }
     case "mythic": {
-      // Cosmic pink/purple — intense outer nebula + rune ring + crown stars + swirl
-      outerGlow(ctx, "rgba(255,100,200,0.35)", 1, 64);
-      glowRim(ctx, "#ff50d0", 0.85, 24, 6);
-      rays(ctx, "#ff80e8", 24, 16, 0.5);
-      particles(ctx, "#ffaaff", 16, 46, 62, 2.5, 0.9);
-      // Orbiting rune ring
-      ctx.save();
-      ctx.strokeStyle = "#cc40b0"; ctx.lineWidth = 1; ctx.globalAlpha = 0.45;
-      ctx.shadowColor = "#ff40cc"; ctx.shadowBlur = 8;
-      ctx.beginPath(); ctx.arc(CX, CY, 58, 0, Math.PI * 2); ctx.stroke();
-      ctx.restore();
-      // Crown of stars on the ring
-      ctx.save();
-      ctx.globalAlpha = 0.9;
-      for (let i = 0; i < 8; i++) {
-        const a = (i / 8) * Math.PI * 2;
-        const x = CX + 58 * Math.cos(a); const y = CY + 58 * Math.sin(a);
-        ctx.beginPath(); ctx.arc(x, y, 3, 0, Math.PI * 2);
-        ctx.fillStyle = "#ffaaff"; ctx.shadowColor = "#ff40cc"; ctx.shadowBlur = 10; ctx.fill();
+      const g = ctx.createRadialGradient(CX, CY, 20, CX, CY, 64);
+      g.addColorStop(0, "rgba(244,143,177,0.2)"); g.addColorStop(1, "rgba(171,71,188,0.35)");
+      ctx.fillStyle = g; ctx.fillRect(0, 0, SIZE, SIZE);
+      glowRim(ctx, "#f06292", 0.8, 30, 7);
+      rays(ctx, "#f8bbd0", 24, 20, 0.6);
+      particles(ctx, "#fce4ec", 20, 44, 62, 2.5, 0.9);
+      ctx.strokeStyle = "#e91e63"; ctx.lineWidth = 1.2; ctx.setLineDash([5, 3]);
+      ctx.beginPath(); ctx.arc(CX, CY, 58, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
+      for (let i = 0; i < 12; i++) {
+        const a = (i / 12) * Math.PI * 2;
+        const x = CX + 58 * Math.cos(a), y = CY + 58 * Math.sin(a);
+        ctx.beginPath(); ctx.arc(x, y, 3.5, 0, Math.PI * 2);
+        ctx.fillStyle = "#fce4ec"; ctx.shadowColor = "#e91e63"; ctx.shadowBlur = 12; ctx.fill();
       }
-      ctx.restore();
-      // Cosmic shimmer center
-      const cg = ctx.createRadialGradient(CX, CY, 0, CX, CY, 38);
-      cg.addColorStop(0, "rgba(255,180,255,0.12)");
-      cg.addColorStop(1, "transparent");
-      ctx.save(); ctx.fillStyle = cg; ctx.fillRect(0, 0, SIZE, SIZE); ctx.restore();
       break;
     }
   }
+  ctx.restore();
 }
 
 // ─── ELEMENT EFFECTS ──────────────────────────────────────────────────────────
@@ -251,9 +209,7 @@ export function drawElementEffect(ctx: CanvasRenderingContext2D, element: Elemen
         [28, 118, -0.5, 11], [68, 120, 0, 10], [96, 116, 0.6, 12],
       ];
       for (const [sx, sy, angle, sh] of shards) {
-        ctx.save();
-        ctx.translate(sx, sy);
-        ctx.rotate(angle);
+        ctx.save(); ctx.translate(sx, sy); ctx.rotate(angle);
         const sg = ctx.createLinearGradient(0, 0, 0, -sh);
         sg.addColorStop(0, "rgba(180,240,255,0.95)");
         sg.addColorStop(0.5, "rgba(220,250,255,0.8)");
@@ -266,8 +222,8 @@ export function drawElementEffect(ctx: CanvasRenderingContext2D, element: Elemen
 
       ctx.strokeStyle = "rgba(200,240,255,0.5)"; ctx.lineWidth = 1.2;
       const cracks: [number, number, number, number][] = [
-        [10, 30, 30, 55], [118, 25, 98, 48], [25, 100, 50, 115],
-        [100, 105, 75, 118], [40, 12, 55, 28], [85, 10, 72, 26]
+        [8, 25, 35, 60], [120, 20, 95, 55], [20, 105, 55, 120],
+        [105, 110, 80, 125], [35, 8, 58, 32], [90, 6, 75, 28]
       ];
       for (const [x1, y1, x2, y2] of cracks) {
         ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
@@ -293,9 +249,9 @@ export function drawElementEffect(ctx: CanvasRenderingContext2D, element: Elemen
       ctx.fillStyle = eg; ctx.fillRect(0, 0, SIZE, SIZE);
 
       const bolts: [number, number, number, number, number[]][] = [
-        [10, 20, 118, 108, [30, 45, 55, 80, 80, 60, 95, 75]],
-        [18, 105, 110, 18, [40, 90, 60, 70, 75, 50, 90, 35]],
-        [CX, 5, CX + 20, 123, [CX + 5, 30, CX - 8, 55, CX + 12, 80, CX - 5, 100]],
+        [8, 15, 120, 112, [25, 40, 50, 85, 75, 65, 98, 80]],
+        [15, 110, 115, 15, [35, 95, 55, 75, 70, 55, 95, 40]],
+        [CX, 2, CX + 25, 126, [CX + 8, 35, CX - 10, 60, CX + 15, 85, CX - 8, 105]],
       ];
 
       ctx.lineWidth = 1.8; ctx.lineCap = "round";
@@ -342,12 +298,8 @@ export function drawElementEffect(ctx: CanvasRenderingContext2D, element: Elemen
 
       ctx.lineWidth = 2; ctx.strokeStyle = "#00f0d0"; ctx.shadowColor = "#00e5cc"; ctx.shadowBlur = 10;
       const swirls: [number, number, number, number, number][] = [
-        [CX, CY, 52, 0.1, 1.4],
-        [CX - 8, CY + 6, 38, 0.8, 2.2],
-        [CX + 10, CY - 8, 44, 3.5, 5.2],
-        [CX, CY, 28, 2.0, 3.8],
-        [CX + 4, CY + 4, 60, -0.3, 0.9],
-        [CX - 6, CY - 6, 20, 1.2, 2.8],
+        [CX, CY, 54, 0, 1.5], [CX - 10, CY + 8, 40, 0.7, 2.4], [CX + 12, CY - 10, 46, 3.4, 5.4],
+        [CX, CY, 30, 1.8, 4.0], [CX + 5, CY + 5, 62, -0.4, 1.0], [CX - 8, CY - 8, 22, 1.1, 3.0],
       ];
       for (const [wx, wy, wr, startA, endA] of swirls) {
         ctx.beginPath();
@@ -359,10 +311,9 @@ export function drawElementEffect(ctx: CanvasRenderingContext2D, element: Elemen
       ctx.globalAlpha = 0.5;
       ctx.lineWidth = 1.5;
       const streaks: [number, number, number, number][] = [
-        [0, 18, 35, 22], [0, 32, 28, 36], [90, 24, 128, 20],
-        [95, 40, 128, 38], [0, 98, 40, 102], [88, 95, 128, 92],
-        [0, 112, 30, 108], [100, 108, 128, 112],
-        [20, 55, 50, 52], [78, 75, 108, 72],
+        [0, 15, 40, 20], [0, 30, 32, 35], [85, 22, 128, 18], [90, 42, 128, 40],
+        [0, 102, 45, 105], [82, 98, 128, 95], [0, 115, 35, 110], [95, 112, 128, 115],
+        [15, 58, 55, 55], [75, 78, 110, 75],
       ];
       for (const [x1, y1, x2, y2] of streaks) {
         const sg = ctx.createLinearGradient(x1, y1, x2, y2);
@@ -376,8 +327,8 @@ export function drawElementEffect(ctx: CanvasRenderingContext2D, element: Elemen
       ctx.globalAlpha = 0.7;
       ctx.fillStyle = "#00f0d0"; ctx.shadowColor = "#00e5cc"; ctx.shadowBlur = 8;
       const wisps: [number, number, number][] = [
-        [15, 15, 0.4], [110, 20, -0.6], [18, 110, 0.8], [112, 105, -0.5],
-        [50, 10, 0.2], [80, 118, -0.3], [8, 60, 0.5], [120, 65, -0.4]
+        [12, 12, 0.5], [115, 18, -0.7], [20, 115, 0.9], [115, 110, -0.6],
+        [55, 8, 0.3], [85, 120, -0.4], [5, 65, 0.6], [123, 70, -0.5]
       ];
       for (const [wx, wy, angle] of wisps) {
         ctx.save(); ctx.translate(wx, wy); ctx.rotate(angle);
