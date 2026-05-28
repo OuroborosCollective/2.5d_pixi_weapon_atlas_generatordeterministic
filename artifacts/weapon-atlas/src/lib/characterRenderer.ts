@@ -4,15 +4,6 @@
 //   Row 0: walk_south   Row 1: walk_west   Row 2: walk_east
 //   Row 3: walk_north   Row 4: idle        Row 5: attack
 //   Row 6: cast(fb)     Row 7: hurt(fb)    Row 8: death(fb)
-//
-// RULES:
-//   - TRANSPARENT canvas always. No fillRect on full canvas.
-//   - imageSmoothingEnabled = false everywhere.
-//   - Integer math only. No floating drift.
-//   - Outline pixels on all body parts.
-//   - Contact shadow under feet.
-//   - Class-specific equipment and silhouette.
-//   - Rarity-specific accents.
 
 export const CHAR_FRAME_W  = 48;
 export const CHAR_FRAME_H  = 64;
@@ -133,12 +124,12 @@ export const CHAR_CATEGORIES: Record<CharacterClass, CharacterDef[]> = {
 // ─── RACE METRICS ─────────────────────────────────────────────────────────────
 
 interface RaceMetrics {
-  headW: number;   // head width  (pixels)
-  headH: number;   // head height (pixels)
-  torsoW: number;  // torso width
-  torsoH: number;  // torso height
-  legH: number;    // leg length
-  dy: number;      // vertical offset (positive = shorter)
+  headW: number;
+  headH: number;
+  torsoW: number;
+  torsoH: number;
+  legH: number;
+  dy: number;
 }
 
 const RACE_METRICS: Record<CharacterRace, RaceMetrics> = {
@@ -147,8 +138,6 @@ const RACE_METRICS: Record<CharacterRace, RaceMetrics> = {
   dwarf: { headW: 16, headH: 15, torsoW: 24, torsoH: 15, legH:  9, dy: 4  },
   orc:   { headW: 18, headH: 16, torsoW: 24, torsoH: 18, legH: 13, dy: 0  },
 };
-
-// ─── DRAW PHASE DATA ─────────────────────────────────────────────────────────
 
 interface WalkPhase { ly: number; ry: number; by: number; la: number; ra: number; }
 const WALK_PHASES: WalkPhase[] = [
@@ -159,38 +148,36 @@ const WALK_PHASES: WalkPhase[] = [
 ];
 const IDLE_BOB = [0, -1, -1, 0];
 const ATTACK_PHASES = [
-  { armX:  0, armY: -4, weaponRot: -0.8 },
-  { armX:  8, armY:  2, weaponRot:  0.3 },
-  { armX: 12, armY:  4, weaponRot:  0.6 },
-  { armX:  4, armY:  0, weaponRot:  0.0 },
+  { armX:  0, armY: -4 },
+  { armX:  8, armY:  2 },
+  { armX: 12, armY:  4 },
+  { armX:  4, armY:  0 },
 ];
 
-// ─── LOW-LEVEL PIXEL-ART PRIMITIVES ──────────────────────────────────────────
-
-// All drawing uses only fillRect — no arcs/ellipses to avoid anti-aliasing
+// ─── PIXEL PRIMITIVES ────────────────────────────────────────────────────────
 
 function px(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, color: string) {
+  if (w <= 0 || h <= 0) return;
   ctx.fillStyle = color;
   ctx.fillRect(x | 0, y | 0, w | 0, h | 0);
 }
 
-// Draw a pixel-art "rounded" rect by filling cross shape
 function pxRound(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, color: string) {
   x = x | 0; y = y | 0; w = w | 0; h = h | 0;
-  // Wide band (center)
   ctx.fillStyle = color;
   ctx.fillRect(x + 2, y,     w - 4, h);
   ctx.fillRect(x,     y + 2, w,     h - 4);
+  // Fill corners (make rounder)
+  ctx.fillRect(x + 1, y + 1, w - 2, h - 2);
 }
 
-// Draw outline: 1px dark border around a rect
 function pxOutline(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, color: string) {
   x = x | 0; y = y | 0; w = w | 0; h = h | 0;
   ctx.fillStyle = color;
-  ctx.fillRect(x, y, w, 1);       // top
-  ctx.fillRect(x, y+h-1, w, 1);   // bottom
-  ctx.fillRect(x, y, 1, h);       // left
-  ctx.fillRect(x+w-1, y, 1, h);   // right
+  ctx.fillRect(x,     y,       w, 1);
+  ctx.fillRect(x,     y+h-1,   w, 1);
+  ctx.fillRect(x,     y,       1, h);
+  ctx.fillRect(x+w-1, y,       1, h);
 }
 
 function shade(c: string, amt: number): string {
@@ -201,67 +188,266 @@ function shade(c: string, amt: number): string {
   return '#' + [r, g, b].map(v => v.toString(16).padStart(2, '0')).join('');
 }
 
-// ─── COMPOSITE DRAWING PRIMITIVES ────────────────────────────────────────────
-
+// Public API helpers
 export function drawPixelRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, color: string) {
   px(ctx, x, y, w, h, color);
 }
-
-export function drawOutlineRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, fill: string, outlineColor: string) {
+export function drawOutlineRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, fill: string, outline: string) {
   px(ctx, x, y, w, h, fill);
-  pxOutline(ctx, x, y, w, h, outlineColor);
+  pxOutline(ctx, x, y, w, h, outline);
 }
 
+// Module-level contact shadow flag (synchronous, safe)
+let _skipContactShadow = false;
+
 export function drawContactShadow(ctx: CanvasRenderingContext2D, cx: number, groundY: number, width: number) {
-  // Layered shadow for pixel-art look
-  ctx.fillStyle = 'rgba(0,0,0,0.22)';
+  if (_skipContactShadow) return;
+  ctx.fillStyle = 'rgba(0,0,0,0.25)';
   ctx.fillRect((cx - width) | 0, groundY | 0, (width * 2) | 0, 2);
   ctx.fillStyle = 'rgba(0,0,0,0.14)';
   ctx.fillRect((cx - width + 1) | 0, (groundY + 2) | 0, (width * 2 - 2) | 0, 1);
-  ctx.fillStyle = 'rgba(0,0,0,0.10)';
+  ctx.fillStyle = 'rgba(0,0,0,0.08)';
   ctx.fillRect((cx - width + 2) | 0, (groundY - 1) | 0, (width * 2 - 4) | 0, 1);
 }
+
+// ─── HEAD ────────────────────────────────────────────────────────────────────
 
 export function drawHead(ctx: CanvasRenderingContext2D, cx: number, cy: number, w: number, h: number, skinColor: string) {
   const x = (cx - (w >> 1)) | 0;
   const y = (cy - (h >> 1)) | 0;
-  // Rounded pixel-art head
+  // Fill with rounded shape
   pxRound(ctx, x, y, w, h, skinColor);
-  // Jaw shadow (lower third)
-  px(ctx, x + 2, y + h - 4, w - 4, 3, shade(skinColor, -18));
-  // Cheek blush (subtle highlight left side)
-  px(ctx, x + 2, y + 4, 3, 4, shade(skinColor, 12));
+  // Strong outline
+  pxOutline(ctx, x, y, w, h, '#1A1420');
+  // Upper-left cheek highlight
+  px(ctx, x + 2, y + 2, w - 6, 4, shade(skinColor, 16));
+  // Right shadow
+  px(ctx, x + w - 4, y + 3, 3, h - 6, shade(skinColor, -20));
+  // Jaw/chin shadow
+  px(ctx, x + 2, y + h - 5, w - 4, 4, shade(skinColor, -20));
+}
+
+// Face features (eyes, brows) — called after headgear so visor can override
+function drawFace(ctx: CanvasRenderingContext2D, cx: number, eyeY: number, eyeColor: string, hairColor: string) {
+  // Left eye (2×2)
+  const lx = cx - 6;
+  const rx = cx + 3;
+  px(ctx, lx, eyeY, 3, 2, eyeColor);
+  px(ctx, lx, eyeY, 1, 2, '#160C18');         // pupil
+  px(ctx, lx + 1, eyeY, 1, 1, shade(eyeColor, 50)); // gleam
+  // Right eye
+  px(ctx, rx, eyeY, 3, 2, eyeColor);
+  px(ctx, rx, eyeY, 1, 2, '#160C18');
+  px(ctx, rx + 1, eyeY, 1, 1, shade(eyeColor, 50));
+  // Eyebrows
+  const br = shade(hairColor, -15);
+  px(ctx, lx - 1, eyeY - 2, 4, 1, br);
+  px(ctx, rx,     eyeY - 2, 4, 1, br);
+  // Nose shadow (subtle 1px)
+  px(ctx, cx,     eyeY + 4, 2, 1, shade(eyeColor, -35));
 }
 
 export function drawHair(ctx: CanvasRenderingContext2D, cx: number, cy: number, w: number, h: number, hairColor: string, charClass: CharacterClass) {
-  // Hair covers top half of head
   const hx = (cx - (w >> 1)) | 0;
   const hy = (cy - (h >> 1)) | 0;
   // Top sweep
-  px(ctx, hx + 2, hy - 2, w - 4, 6, hairColor);
+  px(ctx, hx + 2, hy - 3, w - 4, 7, hairColor);
   px(ctx, hx + 1, hy,     w - 2, 4, hairColor);
+  px(ctx, hx + 3, hy - 2, w - 6, 3, shade(hairColor, 18)); // highlight
   // Side pieces
-  px(ctx, hx - 1, hy + 3, 3, 7, hairColor);
-  px(ctx, hx + w - 2, hy + 3, 3, 7, hairColor);
+  px(ctx, hx - 1, hy + 3,  3, 9, hairColor);
+  px(ctx, hx + w - 2, hy + 3, 3, 9, hairColor);
 
-  // Class-specific hair style
-  switch (charClass) {
-    case 'berserker':
-      // Wild spiky sides
-      px(ctx, hx - 2, hy + 1, 3, 5, shade(hairColor, -10));
-      px(ctx, hx + w, hy + 1, 3, 5, shade(hairColor, -10));
-      break;
-    case 'mage':
-      // Neat swept back
-      px(ctx, hx - 1, hy + 2, 2, 6, hairColor);
-      px(ctx, hx + w - 1, hy + 2, 2, 6, hairColor);
-      break;
-    case 'ranger':
-      // Longer side
-      px(ctx, hx - 1, hy + 3, 2, 9, hairColor);
-      break;
+  if (charClass === 'berserker') {
+    // Wild spiky
+    px(ctx, hx - 2, hy,     3, 7, shade(hairColor, -8));
+    px(ctx, hx + w - 1, hy, 3, 7, shade(hairColor, -8));
+    px(ctx, hx,     hy - 5, 3, 4, hairColor);
+    px(ctx, hx + w - 3, hy - 5, 3, 4, hairColor);
+    px(ctx, cx - 1, hy - 6, 2, 4, hairColor);
+  } else if (charClass === 'mage') {
+    // Long flowing sides under hat
+    px(ctx, hx - 1, hy + 8, 3, 10, hairColor);
+    px(ctx, hx + w - 2, hy + 8, 3, 10, hairColor);
+  } else if (charClass === 'ranger') {
+    // Medium with side sweep
+    px(ctx, hx - 1, hy + 5, 2, 11, hairColor);
+    px(ctx, hx + w - 1, hy + 5, 2, 8, hairColor);
   }
 }
+
+// ─── HEADGEAR ────────────────────────────────────────────────────────────────
+
+function drawHeadgear(ctx: CanvasRenderingContext2D, char: CharacterDef, cx: number, baseY: number, hw: number) {
+  const ac  = char.accentColor;
+  const arm = AT[char.armorTier];
+  const headTopY = baseY + 5; // head top for human/elf (approx)
+
+  switch (char.class) {
+    case 'warrior': {
+      // Full closed helmet — covers entire head except lower face
+      const hc  = arm.b;
+      const hl  = arm.l;
+      const hd  = arm.d;
+      const hout = shade(hc, -45);
+      // Helmet dome (full width over head)
+      px(ctx, cx - hw - 1, headTopY,     hw * 2 + 2, 10, hc);
+      px(ctx, cx - hw,     headTopY - 1, hw * 2,      2,  hc);
+      // Highlight strip at top
+      px(ctx, cx - hw + 1, headTopY,     hw * 2 - 2,  2,  hl);
+      // Cheek guards (sides)
+      px(ctx, cx - hw - 2, headTopY + 4, 3, 10, shade(hc, -8));
+      px(ctx, cx + hw,     headTopY + 4, 3, 10, shade(hc, -8));
+      // Visor slit (just eye slit, dark)
+      px(ctx, cx - 5, headTopY + 7, 10, 2, shade(hd, -20));
+      px(ctx, cx - 4, headTopY + 7,  8, 1, '#0A080E');
+      // Nose guard (center strip)
+      px(ctx, cx - 1, headTopY + 7, 2, 6, shade(hc, -15));
+      // Chin strap bottom
+      px(ctx, cx - hw,     headTopY + 10, hw * 2, 3, shade(hc, -10));
+      pxOutline(ctx, cx - hw - 1, headTopY, hw * 2 + 2, 13, hout);
+      // Plume for rare+
+      if (char.rarity !== 'common' && char.rarity !== 'uncommon') {
+        px(ctx, cx - 2, headTopY - 5, 4, 6, ac);
+        px(ctx, cx - 1, headTopY - 7, 2, 3, shade(ac, 20));
+        px(ctx, cx - 3, headTopY - 4, 2, 4, shade(ac, -15));
+      }
+      break;
+    }
+
+    case 'paladin': {
+      // Great helm with cross visor + blue plume/tabard
+      const hc  = shade(arm.b, 10); // slightly brighter than warrior
+      const hl  = shade(arm.l, 10);
+      const hout = shade(hc, -45);
+      px(ctx, cx - hw - 1, headTopY,     hw * 2 + 2, 10, hc);
+      px(ctx, cx - hw,     headTopY - 1, hw * 2,      2,  hc);
+      px(ctx, cx - hw + 1, headTopY,     hw * 2 - 2,  2,  hl);
+      px(ctx, cx - hw - 2, headTopY + 4, 3, 10, shade(hc,-8));
+      px(ctx, cx + hw,     headTopY + 4, 3, 10, shade(hc,-8));
+      // Cross visor (horizontal + vertical)
+      px(ctx, cx - 5, headTopY + 7, 10, 2, shade(arm.d, -15));
+      px(ctx, cx - 1, headTopY + 5, 2,  6, shade(arm.d, -15));
+      px(ctx, cx - 4, headTopY + 8, 8,  1, '#0A080E');
+      pxOutline(ctx, cx - hw - 1, headTopY, hw * 2 + 2, 13, hout);
+      // Holy plume — accent color
+      px(ctx, cx - 2, headTopY - 6, 4, 7, ac);
+      px(ctx, cx - 1, headTopY - 8, 2, 3, shade(ac, 25));
+      px(ctx, cx - 3, headTopY - 5, 2, 5, shade(ac, -15));
+      break;
+    }
+
+    case 'mage': {
+      // Tall pointed wizard hat — WIDE brim, tall cone
+      const hc   = char.armorColor;
+      const hcl  = shade(hc, 20);
+      const hcd  = shade(hc, -20);
+      const hout = shade(hc, -55);
+      // Wide brim (20px wide, 3px tall, at head top)
+      const brimY = headTopY + 1;
+      const brimX = cx - 10;
+      const brimW = 20;
+      px(ctx, brimX, brimY,     brimW, 3, hc);
+      px(ctx, brimX, brimY,     brimW, 1, hcl);        // brim highlight
+      px(ctx, brimX, brimY + 3, brimW, 1, hcd);        // brim underside
+      // Accent band (at brim top)
+      px(ctx, brimX + 1, brimY, brimW - 2, 2, ac);
+      // Hat cone — 5 layers getting narrower
+      px(ctx, cx - 7, brimY - 5,  14, 5, hc);          // lower cone
+      px(ctx, cx - 7, brimY - 5,  14, 1, hcl);
+      px(ctx, cx - 5, brimY - 10, 10, 6, hc);          // mid cone
+      px(ctx, cx - 5, brimY - 10, 10, 1, hcl);
+      px(ctx, cx - 3, brimY - 15,  6, 6, hc);          // upper cone
+      px(ctx, cx - 3, brimY - 15,  6, 1, hcl);
+      px(ctx, cx - 1, brimY - 19,  2, 5, hc);          // tip
+      // Hat outlines (left/right sides of cone)
+      px(ctx, brimX,     brimY,     1, 3, hout);
+      px(ctx, brimX+brimW-1, brimY, 1, 3, hout);
+      px(ctx, cx - 7,   brimY - 5,  1, 5, hout);
+      px(ctx, cx + 7,   brimY - 5,  1, 5, hout);
+      px(ctx, cx - 5,   brimY - 10, 1, 6, hout);
+      px(ctx, cx + 5,   brimY - 10, 1, 6, hout);
+      px(ctx, cx - 3,   brimY - 15, 1, 6, hout);
+      px(ctx, cx + 3,   brimY - 15, 1, 6, hout);
+      // Star on hat for rare+
+      if (char.rarity !== 'common') {
+        px(ctx, cx - 1, brimY - 8, 2, 1, shade(ac, 20));
+        px(ctx, cx,     brimY - 9, 1, 3, shade(ac, 20));
+      }
+      break;
+    }
+
+    case 'rogue': {
+      // Deep fabric hood — close-fitting, dark
+      const hc  = shade(char.armorColor, 5);
+      const hcd = shade(hc, -35);
+      // Hood wraps around entire head
+      px(ctx, cx - hw - 2, headTopY + 1, hw * 2 + 4, 14, hc);
+      px(ctx, cx - hw,     headTopY - 1, hw * 2,      3,  hc);
+      px(ctx, cx - hw + 2, headTopY - 3, hw * 2 - 4,  3,  hc);
+      // Peak at top center
+      px(ctx, cx - 2, headTopY - 5, 4, 3, hc);
+      // Deep shadow inside hood (forehead area)
+      px(ctx, cx - 5, headTopY + 2,  10, 4, hcd);
+      // Side shadows
+      px(ctx, cx - hw - 1, headTopY + 3, 2, 10, shade(hc, -25));
+      px(ctx, cx + hw,     headTopY + 3, 2, 10, shade(hc, -25));
+      pxOutline(ctx, cx - hw - 2, headTopY + 1, hw * 2 + 4, 12, shade(hc, -50));
+      break;
+    }
+
+    case 'ranger': {
+      // Leather hood — looser shape, slightly peaked
+      const hc  = shade(char.armorColor, 8);
+      const hcl = shade(hc, 20);
+      const hcd = shade(hc, -25);
+      // Hood behind head (wider backing)
+      px(ctx, cx - hw - 3, headTopY, hw * 2 + 6, 14, shade(hc, -12));
+      // Hood front
+      px(ctx, cx - hw - 1, headTopY + 1, hw * 2 + 2, 12, hc);
+      px(ctx, cx - hw + 1, headTopY - 1, hw * 2 - 2,  3,  hc);
+      px(ctx, cx - 2, headTopY - 4, 4, 3, hc); // peak
+      // Highlight
+      px(ctx, cx - hw + 2, headTopY + 1, hw * 2 - 4, 2, hcl);
+      // Shadow inside
+      px(ctx, cx - 4, headTopY + 3, 8, 4, hcd);
+      // Feather (rare+)
+      if (char.rarity !== 'common') {
+        const fx = cx + hw - 1;
+        px(ctx, fx,     headTopY - 2, 2, 8, ac);
+        px(ctx, fx - 1, headTopY - 1, 2, 4, shade(ac, 15));
+        px(ctx, fx + 1, headTopY + 1, 2, 4, shade(ac, -10));
+      }
+      pxOutline(ctx, cx - hw - 1, headTopY + 1, hw * 2 + 2, 12, shade(hc, -45));
+      break;
+    }
+
+    case 'berserker': {
+      // Spiked horned headband
+      const hc  = shade(arm.b, -15);
+      const hornC = shade(arm.b, -35);
+      // Headband
+      px(ctx, cx - hw - 1, headTopY + 7, hw * 2 + 2, 4, hc);
+      px(ctx, cx - hw - 1, headTopY + 7, hw * 2 + 2, 1, shade(hc, 15)); // top highlight
+      px(ctx, cx - hw - 1, headTopY + 10, hw * 2 + 2, 1, shade(hc,-20)); // bottom shadow
+      // Accent rivets
+      px(ctx, cx - 3, headTopY + 8, 2, 2, ac);
+      px(ctx, cx + 1, headTopY + 8, 2, 2, ac);
+      // Left horn
+      px(ctx, cx - hw - 4, headTopY + 5, 4, 3, hornC);
+      px(ctx, cx - hw - 3, headTopY + 3, 3, 3, hornC);
+      px(ctx, cx - hw - 2, headTopY + 1, 2, 3, shade(hornC, -10));
+      // Right horn
+      px(ctx, cx + hw + 1, headTopY + 5, 4, 3, hornC);
+      px(ctx, cx + hw,     headTopY + 3, 3, 3, hornC);
+      px(ctx, cx + hw,     headTopY + 1, 2, 3, shade(hornC, -10));
+      pxOutline(ctx, cx - hw - 1, headTopY + 7, hw * 2 + 2, 4, shade(hc, -50));
+      break;
+    }
+  }
+}
+
+// ─── BODY: STANDARD ARMOR TORSO ──────────────────────────────────────────────
 
 export function drawTorsoArmor(
   ctx: CanvasRenderingContext2D,
@@ -271,30 +457,163 @@ export function drawTorsoArmor(
   beltColor: string, charClass: CharacterClass,
   accentColor: string, isBerserker: boolean
 ) {
-  const tx = (cx - (w >> 1)) | 0;
-  // Body
+  const tx   = (cx - (w >> 1)) | 0;
+  const out  = shade(armorBase, -50);
+  const shoulderExt = (charClass === 'warrior' || charClass === 'berserker' || charClass === 'paladin') ? 4 : 1;
+
+  // Main torso fill
   px(ctx, tx, torsoY, w, h, armorBase);
-  // Shoulder pads (top 4px, wider for warrior/berserker)
-  const shoulderExtra = (charClass === 'warrior' || charClass === 'berserker' || charClass === 'paladin') ? 3 : 0;
-  if (shoulderExtra > 0) {
-    px(ctx, tx - shoulderExtra, torsoY, w + shoulderExtra * 2, 5, shade(armorBase, -8));
-    px(ctx, tx - shoulderExtra, torsoY, w + shoulderExtra * 2, 2, armorLight);
+
+  // Pauldrons / shoulder caps
+  if (shoulderExt > 0) {
+    const pw = w + shoulderExt * 2;
+    const px_ = tx - shoulderExt;
+    px(ctx, px_, torsoY,     pw, 6, shade(armorBase, -10));
+    px(ctx, px_, torsoY,     pw, 2, armorLight);            // highlight top edge
+    px(ctx, px_ + 1, torsoY + 2, pw - 2, 1, armorLight);
+    pxOutline(ctx, px_, torsoY, pw, 6, out);
     if (isBerserker) {
-      // Spike-tip shoulder pads
-      px(ctx, tx - shoulderExtra - 1, torsoY - 3, 3, 4, shade(armorBase, -20));
-      px(ctx, tx + w + shoulderExtra - 2, torsoY - 3, 3, 4, shade(armorBase, -20));
+      // Spiked shoulder tips
+      px(ctx, px_ - 1, torsoY - 3, 3, 4, shade(armorBase, -22));
+      px(ctx, px_ + pw - 2, torsoY - 3, 3, 4, shade(armorBase, -22));
     }
   }
-  // Chest highlight (upper-left light source)
-  px(ctx, tx + 2, torsoY + 1, w - 6, 3, armorLight);
-  // Side shadow (right)
-  px(ctx, tx + w - 4, torsoY + 2, 3, h - 3, armorDark);
+
+  // Chest plate detail
+  const cpX = tx + 3, cpY = torsoY + 7, cpW = w - 6, cpH = h - 10;
+  px(ctx, cpX, cpY, cpW, cpH, shade(armorBase, -6)); // slightly recessed center plate
+  px(ctx, cpX, cpY, cpW, 2, armorLight);              // chest highlight
+  px(ctx, cpX + cpW - 2, cpY + 2, 2, cpH - 3, armorDark); // right shadow
+
+  // Class emblem on chest
+  switch (charClass) {
+    case 'warrior':
+      px(ctx, cx - 2, torsoY + 7, 4, 10, shade(accentColor, -20)); // chevron
+      px(ctx, cx - 4, torsoY + 10, 8, 3, shade(accentColor, -20));
+      break;
+    case 'paladin':
+      // Cross
+      px(ctx, cx - 1, torsoY + 5, 3, 12, accentColor);
+      px(ctx, cx - 5, torsoY + 9, 11, 3, accentColor);
+      px(ctx, cx,     torsoY + 8, 1, 1, shade(accentColor, 50)); // center gem
+      break;
+    case 'berserker':
+      px(ctx, cx - 2, torsoY + 5, 4, 2, accentColor);
+      px(ctx, cx - 4, torsoY + 9, 8, 2, accentColor);
+      break;
+    case 'mage':
+      px(ctx, cx - 1, torsoY + 3, 2, 12, shade(accentColor, -15));
+      px(ctx, cx - 3, torsoY + 7, 6, 2, accentColor);
+      break;
+    case 'rogue':
+      // Strap diagonal
+      px(ctx, tx + 2, torsoY + 2, w - 4, 2, shade(armorBase, -25));
+      px(ctx, tx + 3, torsoY + 6, w - 6, 2, shade(armorBase, -25));
+      px(ctx, cx - 1, torsoY + 4, 2, 2, accentColor); // buckle
+      break;
+    case 'ranger':
+      px(ctx, tx + 2, torsoY + 1, 2, h - 3, shade(armorBase, -20)); // quiver strap
+      px(ctx, tx + 5, torsoY + 1, 2, h - 3, shade(armorBase, -20));
+      break;
+  }
+
   // Belt
   px(ctx, tx - 1, torsoY + h, w + 2, 4, beltColor);
-  px(ctx, tx, torsoY + h + 1, w, 2, shade(beltColor, 10));
-  // Outline
-  pxOutline(ctx, tx, torsoY, w, h, shade(armorBase, -40));
+  px(ctx, tx,     torsoY + h, w,     1, shade(beltColor, 18));
+  px(ctx, tx,     torsoY + h + 3, w, 1, shade(beltColor, -20));
+  // Belt buckle
+  px(ctx, cx - 2, torsoY + h + 1, 4, 2, shade(beltColor, 30));
+  px(ctx, cx - 1, torsoY + h + 1, 2, 2, shade(beltColor, 50));
+
+  // Torso outline
+  pxOutline(ctx, tx, torsoY, w, h, out);
 }
+
+// ─── BODY: MAGE ROBE ─────────────────────────────────────────────────────────
+
+function drawMageRobe(
+  ctx: CanvasRenderingContext2D,
+  cx: number, baseY: number,
+  char: CharacterDef
+) {
+  const rc   = char.armorColor;
+  const rcl  = shade(rc, 22);
+  const rcd  = shade(rc, -22);
+  const rout = shade(rc, -55);
+  const belt = shade(rc, -38);
+  const ac   = char.accentColor;
+  const robeTopY = baseY + 24;
+
+  // ── Upper robe (torso area) ──
+  const uw = 22;
+  const utx = (cx - (uw >> 1)) | 0;
+  px(ctx, utx, robeTopY, uw, 14, rc);
+  // Shoulder highlight
+  px(ctx, utx + 1, robeTopY, uw - 2, 3, rcl);
+  // Right shadow strip
+  px(ctx, utx + uw - 3, robeTopY + 2, 2, 11, rcd);
+  // Center clasp/trim
+  px(ctx, cx - 1, robeTopY, 2, 14, shade(ac, -20));
+  px(ctx, cx - 2, robeTopY + 5, 4, 2, ac);
+  px(ctx, cx - 1, robeTopY + 9, 2, 2, shade(ac, 20));
+  pxOutline(ctx, utx, robeTopY, uw, 14, rout);
+
+  // ── Belt ──
+  const beltY = robeTopY + 13;
+  px(ctx, utx - 2, beltY, uw + 4, 5, belt);
+  px(ctx, utx - 2, beltY, uw + 4, 1, shade(belt, 25));
+  px(ctx, utx - 2, beltY + 4, uw + 4, 1, shade(belt, -20));
+  // Belt buckle
+  px(ctx, cx - 2, beltY + 1, 4, 3, shade(belt, 40));
+  px(ctx, cx - 1, beltY + 2, 2, 1, shade(belt, 60));
+
+  // ── Lower robe (wide trapezoid) ──
+  const lrobeTopY = beltY + 5;
+  for (let i = 0; i < 16; i++) {
+    const expansion = Math.min(i, 6);
+    const w = uw + expansion * 2;
+    const x = (cx - (w >> 1)) | 0;
+    const y = lrobeTopY + i;
+    if (y >= 61) break;
+    // Alternating fold lines
+    const rowShade = (i % 5 === 4) ? rcd : (i % 5 === 0 ? rcl : rc);
+    px(ctx, x, y, w, 1, rowShade);
+    // Side shadow
+    ctx.fillStyle = rout;
+    ctx.fillRect(x, y, 1, 1);
+    ctx.fillRect(x + w - 1, y, 1, 1);
+  }
+  // Robe hem (darker strip at bottom)
+  const hemW = uw + 10;
+  const hemX = (cx - (hemW >> 1)) | 0;
+  const hemY = lrobeTopY + 14;
+  if (hemY < 62) {
+    px(ctx, hemX, hemY, hemW, 3, rcd);
+    px(ctx, hemX, hemY, hemW, 1, shade(rcd, -15));
+    // Trim color on hem
+    px(ctx, hemX + 2, hemY, hemW - 4, 2, ac);
+    px(ctx, hemX + 1, hemY, 1, 3, rout);
+    px(ctx, hemX + hemW - 1, hemY, 1, 3, rout);
+  }
+
+  // ── Boot toes peeking at bottom ──
+  const bootC = shade(rc, -45);
+  const bty   = baseY + 55;
+  if (bty < 62) {
+    // Left boot
+    px(ctx, cx - 7, bty, 7, 5, bootC);
+    px(ctx, cx - 7, bty, 7, 1, shade(bootC, 18));
+    px(ctx, cx - 7, bty + 4, 7, 1, shade(bootC, -25));
+    pxOutline(ctx, cx - 7, bty, 7, 5, shade(bootC, -45));
+    // Right boot
+    px(ctx, cx + 1, bty, 7, 5, shade(bootC, 6));
+    px(ctx, cx + 1, bty, 7, 1, shade(bootC, 22));
+    px(ctx, cx + 1, bty + 4, 7, 1, shade(bootC, -22));
+    pxOutline(ctx, cx + 1, bty, 7, 5, shade(bootC, -45));
+  }
+}
+
+// ─── BODY: ARMS ──────────────────────────────────────────────────────────────
 
 export function drawArms(
   ctx: CanvasRenderingContext2D,
@@ -304,20 +623,20 @@ export function drawArms(
   armorColor: string, skinColor: string,
   isLeft: boolean
 ) {
-  const outline = shade(armorColor, -40);
+  const out = shade(armorColor, -45);
+  const ax  = isLeft ? (cx - armW - backArmOffset) : (cx + frontArmOffset);
   // Arm
-  const ax = isLeft ? (cx - armW - backArmOffset) : (cx + frontArmOffset);
   px(ctx, ax, armY, armW, armH, armorColor);
-  // Highlight left edge
-  px(ctx, ax, armY, 1, armH - 2, shade(armorColor, 18));
-  // Shadow right edge
-  px(ctx, ax + armW - 1, armY + 1, 1, armH - 1, shade(armorColor, -22));
-  // Hand
+  px(ctx, ax, armY, 1, armH - 2, shade(armorColor, 20)); // left highlight
+  px(ctx, ax + armW - 1, armY + 1, 1, armH - 1, shade(armorColor, -25)); // right shadow
+  // Gauntlet/hand
   const handY = armY + armH;
   px(ctx, ax, handY, armW, 4, skinColor);
-  px(ctx, ax, handY, armW, 1, shade(skinColor, -15));
-  pxOutline(ctx, ax, armY, armW, armH + 4, outline);
+  px(ctx, ax, handY, armW, 1, shade(skinColor, -12)); // wrist line
+  pxOutline(ctx, ax, armY, armW, armH + 4, out);
 }
+
+// ─── BODY: LEGS ──────────────────────────────────────────────────────────────
 
 export function drawLegs(
   ctx: CanvasRenderingContext2D,
@@ -326,32 +645,78 @@ export function drawLegs(
   leftDy: number, rightDy: number,
   armorColor: string
 ) {
-  const bootColor  = shade(armorColor, -28);
-  const outline    = shade(armorColor, -45);
-  const legHighlight = shade(armorColor, 20);
+  const bootColor = shade(armorColor, -32);
+  const bootToe   = shade(armorColor, -42);
+  const highlight = shade(armorColor, 22);
+  const out       = shade(armorColor, -50);
 
-  // Left leg
+  // ── Left leg ──
   const lx = (cx - legW - 2) | 0;
   const ly = (legTopY + leftDy) | 0;
   px(ctx, lx, ly, legW, legH, armorColor);
-  px(ctx, lx, ly, legW, 3, legHighlight);           // knee cap
-  px(ctx, lx + 1, ly, 1, legH, shade(armorColor, 14));
-  // Boot
-  px(ctx, lx - 1, ly + legH, legW + 2, 5, bootColor);
-  px(ctx, lx, ly + legH, legW, 2, shade(bootColor, 10));
-  pxOutline(ctx, lx, ly, legW, legH + 5, outline);
+  px(ctx, lx + 1, ly, 1, legH, highlight);     // shin highlight
+  px(ctx, lx, ly, legW, 3, shade(armorColor, 16)); // knee cap
+  px(ctx, lx + legW - 1, ly + 3, 1, legH - 4, shade(armorColor, -22)); // inner shadow
+  // Boot (3-piece: top, toe, sole)
+  px(ctx, lx - 1, ly + legH,     legW + 2, 3, bootColor);
+  px(ctx, lx - 1, ly + legH,     legW + 2, 1, shade(bootColor, 18));
+  px(ctx, lx - 2, ly + legH + 3, legW + 4, 2, bootToe);  // toe extends
+  px(ctx, lx - 2, ly + legH + 3, legW + 4, 1, shade(bootToe, 12));
+  pxOutline(ctx, lx, ly, legW, legH + 5, out);
 
-  // Right leg
+  // ── Right leg ──
   const rx = (cx + 2) | 0;
   const ry = (legTopY + rightDy) | 0;
   px(ctx, rx, ry, legW, legH, armorColor);
-  px(ctx, rx, ry, legW, 3, legHighlight);
-  px(ctx, rx + 1, ry, 1, legH, shade(armorColor, 14));
+  px(ctx, rx + 1, ry, 1, legH, highlight);
+  px(ctx, rx, ry, legW, 3, shade(armorColor, 16));
+  px(ctx, rx + legW - 1, ry + 3, 1, legH - 4, shade(armorColor, -22));
   // Boot
-  px(ctx, rx - 1, ry + legH, legW + 2, 5, bootColor);
-  px(ctx, rx, ry + legH, legW, 2, shade(bootColor, 10));
-  pxOutline(ctx, rx, ry, legW, legH + 5, outline);
+  px(ctx, rx - 1, ry + legH,     legW + 2, 3, bootColor);
+  px(ctx, rx - 1, ry + legH,     legW + 2, 1, shade(bootColor, 18));
+  px(ctx, rx - 1, ry + legH + 3, legW + 4, 2, bootToe);
+  px(ctx, rx - 1, ry + legH + 3, legW + 4, 1, shade(bootToe, 12));
+  pxOutline(ctx, rx, ry, legW, legH + 5, out);
 }
+
+// ─── EQUIPMENT: SHIELD ───────────────────────────────────────────────────────
+
+function drawShield(ctx: CanvasRenderingContext2D, char: CharacterDef, shieldX: number, shieldY: number) {
+  const arm  = AT[char.armorTier];
+  const sc   = arm.b;
+  const sl   = arm.l;
+  const sd   = arm.d;
+  const sout = shade(sc, -50);
+  const ac   = char.accentColor;
+
+  // Kite/heater shield: rectangular top + tapered bottom
+  // Top section (w=12, h=12)
+  px(ctx, shieldX,     shieldY,      12, 12, sc);
+  px(ctx, shieldX,     shieldY,      12,  2, sl); // top highlight
+  px(ctx, shieldX + 9, shieldY + 2,   2, 10, sd); // right shadow
+  px(ctx, shieldX + 1, shieldY + 1,   6,  8, shade(sc, -8)); // left panel
+  // Boss (center rivet)
+  px(ctx, shieldX + 4, shieldY + 4,   4,  4, shade(sc, 20));
+  px(ctx, shieldX + 5, shieldY + 5,   2,  2, sl);
+  // Tapering bottom (3 rows)
+  px(ctx, shieldX + 1, shieldY + 12, 10,  3, sc);
+  px(ctx, shieldX + 2, shieldY + 12,  8,  1, sl);
+  px(ctx, shieldX + 2, shieldY + 15,  8,  3, shade(sc, -8));
+  px(ctx, shieldX + 3, shieldY + 18,  6,  2, sd);
+  px(ctx, shieldX + 4, shieldY + 20,  4,  2, shade(sd, -8));
+  px(ctx, shieldX + 5, shieldY + 22,  2,  2, shade(sd, -15));
+  // Accent trim on top section
+  if (char.rarity !== 'common') {
+    px(ctx, shieldX + 1, shieldY + 3, 1, 6, ac);
+    px(ctx, shieldX + 3, shieldY + 1, 6, 1, ac);
+  }
+  // Outline
+  pxOutline(ctx, shieldX, shieldY, 12, 12, sout);
+  px(ctx, shieldX + 1, shieldY + 12, 1, 10, sout); // left taper
+  px(ctx, shieldX + 10, shieldY + 12, 1, 8, sout); // right taper
+}
+
+// ─── EQUIPMENT: WEAPONS ──────────────────────────────────────────────────────
 
 export function drawWeapon(
   ctx: CanvasRenderingContext2D,
@@ -360,272 +725,253 @@ export function drawWeapon(
   attacking: boolean, frameIdx: number,
   facing: 'south' | 'east'
 ) {
-  const wc = char.weaponTint;
-  const wdark = shade(wc, -25);
-  const wlight = shade(wc, 25);
+  const wc    = char.weaponTint;
+  const wl    = shade(wc, 30);
+  const wd    = shade(wc, -28);
+  const wout  = shade(wc, -52);
+  const metal = shade(wc, -10);
 
   switch (char.class) {
     case 'warrior': {
-      // Sword: blade + guard + pommel
+      // Long sword: 3px blade, 26px long, 7px guard
       if (facing === 'south') {
-        px(ctx, armX + 2, armY + 8, 3, 24, wc);
-        px(ctx, armX + 2, armY + 8, 1, 24, wlight);   // edge shine
-        px(ctx, armX - 1, armY + 8, 7, 3, wdark);     // crossguard
-        px(ctx, armX + 2, armY + 5, 3, 4, shade(wc, -15)); // pommel
+        const sx = armX + 1;
+        const sy = armY + 4;
+        // Blade
+        px(ctx, sx + 1, sy,      1, 26, wl);   // left edge shine
+        px(ctx, sx + 2, sy,      1, 26, wc);
+        px(ctx, sx + 3, sy,      1, 26, wd);   // right shadow
+        px(ctx, sx + 2, sy,      1,  1, '#FFFFFF'); // tip gleam
+        // Crossguard
+        px(ctx, sx - 3, sy + 3,  9,  3, metal);
+        px(ctx, sx - 3, sy + 3,  9,  1, wl);
+        px(ctx, sx - 2, sy + 5,  7,  1, wd);
+        // Handle
+        px(ctx, sx + 1, sy + 6,  3, 6, shade(metal, -20));
+        px(ctx, sx + 1, sy + 6,  1, 6, shade(metal, 10));
+        // Pommel
+        px(ctx, sx,     sy + 12, 4, 3, wc);
+        pxOutline(ctx, sx - 3, sy + 3, 9, 3, wout);
       } else {
-        px(ctx, armX + 4, armY - 6, 3, 28, wc);
-        px(ctx, armX + 4, armY - 6, 1, 28, wlight);
-        px(ctx, armX, armY + 6, 10, 3, wdark);
+        px(ctx, armX + 2, armY - 10, 2, 30, wc);
+        px(ctx, armX + 2, armY - 10, 1, 30, wl);
+        px(ctx, armX - 2, armY + 4,  9,  3, metal);
+        px(ctx, armX - 2, armY + 4,  9,  1, wl);
       }
       break;
     }
+
     case 'paladin': {
-      // Holy sword with accent glow pixel
+      // Holy sword — wider guard, jeweled, slightly shorter
       if (facing === 'south') {
-        px(ctx, armX + 2, armY + 8, 3, 22, wc);
-        px(ctx, armX + 2, armY + 8, 1, 22, wlight);
-        px(ctx, armX - 2, armY + 8, 9, 3, wdark);    // wider guard
-        px(ctx, armX + 2, armY + 4, 4, 5, shade(wc,-15));
-        px(ctx, armX + 3, armY + 10, 1, 2, char.accentColor); // holy gem
+        const sx = armX + 1;
+        const sy = armY + 4;
+        px(ctx, sx + 1, sy,      1, 24, wl);
+        px(ctx, sx + 2, sy,      1, 24, wc);
+        px(ctx, sx + 3, sy,      1, 24, wd);
+        px(ctx, sx + 2, sy,      1,  1, '#FFFFFF');
+        // Wide cross guard
+        px(ctx, sx - 4, sy + 3, 11,  3, wc);
+        px(ctx, sx - 4, sy + 3, 11,  1, wl);
+        px(ctx, sx - 3, sy + 5,  9,  1, wd);
+        // Gem in guard center
+        px(ctx, sx + 1, sy + 3,  3,  3, char.accentColor);
+        px(ctx, sx + 2, sy + 3,  1,  1, shade(char.accentColor, 40));
+        // Handle
+        px(ctx, sx + 1, sy + 6,  3,  5, shade(wc, -25));
+        px(ctx, sx + 1, sy + 11, 4,  3, wc);
+        pxOutline(ctx, sx - 4, sy + 3, 11, 3, wout);
       } else {
-        px(ctx, armX + 4, armY - 6, 3, 26, wc);
-        px(ctx, armX, armY + 6, 11, 3, wdark);
+        px(ctx, armX + 2, armY - 8, 2, 26, wc);
+        px(ctx, armX + 2, armY - 8, 1, 26, wl);
+        px(ctx, armX - 3, armY + 4, 12,  3, wc);
+        px(ctx, armX - 3, armY + 4, 12,  1, wl);
       }
       break;
     }
+
     case 'mage': {
-      // Staff: tall pole + orb
+      // Tall staff — extends high above head, large glowing orb
       if (facing === 'south') {
-        px(ctx, armX + 3, armY - 12, 2, 32, wdark);     // shaft
-        px(ctx, armX + 1, armY - 14, 6, 6, wc);         // orb outer
-        px(ctx, armX + 2, armY - 13, 4, 4, shade(wc,30)); // orb inner glow
-        px(ctx, armX + 3, armY - 13, 2, 2, '#FFFFFF');  // orb highlight
+        const stx = armX - 12;
+        const sty = armY - 22;
+        // Shaft (2px wide, 40px tall)
+        px(ctx, stx + 1, sty + 6, 2, 36, wd);
+        px(ctx, stx + 1, sty + 6, 1, 36, shade(wd, 15));
+        // Orb outer ring
+        px(ctx, stx,     sty,     8, 7, wc);
+        px(ctx, stx,     sty,     8, 1, wl);
+        px(ctx, stx + 1, sty - 1, 6, 2, wc);
+        px(ctx, stx,     sty + 6, 8, 1, wd);
+        // Orb inner glow
+        px(ctx, stx + 1, sty + 1, 6, 5, shade(wc, 25));
+        px(ctx, stx + 2, sty + 1, 4, 4, shade(wc, 45));
+        // Orb highlight
+        px(ctx, stx + 2, sty + 1, 2, 2, '#FFFFFF');
+        // Shaft bottom ferrule
+        px(ctx, stx,     armY + 15, 4, 3, wd);
+        pxOutline(ctx, stx, sty, 8, 7, wout);
       } else {
-        px(ctx, armX + 3, armY - 18, 2, 30, wdark);
-        px(ctx, armX + 1, armY - 20, 6, 6, wc);
-        px(ctx, armX + 2, armY - 19, 4, 4, shade(wc,30));
+        const stx = armX - 4;
+        const sty = armY - 26;
+        px(ctx, stx + 1, sty + 5, 2, 38, wd);
+        px(ctx, stx,     sty,     7, 6, wc);
+        px(ctx, stx + 1, sty + 1, 5, 4, shade(wc, 35));
+        px(ctx, stx + 1, sty + 1, 2, 2, '#FFFFFF');
       }
       break;
     }
+
     case 'rogue': {
-      // Dagger: short blade
+      // Twin daggers (main hand + reverse grip)
       if (facing === 'south') {
-        px(ctx, armX + 2, armY + 8, 3, 14, wc);
-        px(ctx, armX + 2, armY + 8, 1, 14, wlight);
-        px(ctx, armX, armY + 8, 7, 2, wdark);
-        px(ctx, armX + 2, armY + 5, 3, 4, shade(wc,-20));
+        const dx = armX + 2;
+        const dy = armY + 6;
+        // Blade
+        px(ctx, dx + 1, dy,      1, 14, wl);
+        px(ctx, dx + 2, dy,      1, 14, wc);
+        px(ctx, dx + 3, dy,      1, 14, wd);
+        px(ctx, dx + 2, dy,      1,  1, '#FFFFFF');
+        // Guard
+        px(ctx, dx - 1, dy + 2,  7,  2, metal);
+        px(ctx, dx - 1, dy + 2,  7,  1, wl);
+        // Handle
+        px(ctx, dx + 1, dy + 4,  3,  4, shade(metal, -25));
+        px(ctx, dx + 1, dy + 8,  3,  2, wc);
+        pxOutline(ctx, dx - 1, dy + 2, 7, 2, wout);
       } else {
-        px(ctx, armX + 3, armY + 2, 2, 14, wc);
-        px(ctx, armX + 1, armY + 2, 6, 2, wdark);
+        px(ctx, armX + 2, armY + 2, 2, 14, wc);
+        px(ctx, armX + 2, armY + 2, 1, 14, wl);
+        px(ctx, armX, armY + 4,  7,  2, metal);
       }
       break;
     }
+
     case 'ranger': {
-      // Bow: pixel-art arc using stacked rects
+      // Recurve bow — clear arc shape using stepped rects
       if (facing === 'south') {
-        const bx = armX + 4;
-        const by = armY + 2;
-        // Bow limb (left side)
-        px(ctx, bx - 8, by + 2,  3, 3, wc);
-        px(ctx, bx - 9, by + 5,  2, 6, wc);
-        px(ctx, bx - 8, by + 11, 3, 4, wc);
-        // String
-        px(ctx, bx - 7, by,     1, 16, '#D8D0C0');
-        // Arrow if attacking (frame 1)
+        const bx = armX + 2;
+        const by = armY;
+        const bc = wc;
+        const bd = wd;
+        // Bow limbs (pixel-art arc)
+        px(ctx, bx - 8, by + 1,  3, 2, bc);
+        px(ctx, bx - 9, by + 3,  2, 4, bc);
+        px(ctx, bx - 9, by + 7,  2, 3, bc);
+        px(ctx, bx - 8, by + 10, 3, 3, bc);
+        px(ctx, bx - 7, by + 13, 3, 3, bc);
+        px(ctx, bx - 7, by + 16, 3, 2, bc);
+        // Bow handle (grip)
+        px(ctx, bx - 6, by + 7,  4, 4, shade(bc, -15));
+        // Limb highlight
+        px(ctx, bx - 8, by + 2,  1, 3, shade(bc, 20));
+        px(ctx, bx - 8, by + 11, 1, 3, shade(bc, 20));
+        // String (thin line behind bow)
+        px(ctx, bx - 6, by,      1, 20, '#E8DFC8');
+        // Arrow if attacking
         if (attacking && frameIdx === 1) {
-          px(ctx, bx - 14, by + 7, 14, 2, '#C8A050');
-          px(ctx, bx - 15, by + 6,  3,  4, '#E84020'); // fletching
+          px(ctx, bx - 16, by + 8, 14, 2, '#C8A040');
+          px(ctx, bx - 16, by + 7,  1,  1, '#C8A040');
+          px(ctx, bx - 16, by + 9,  1,  1, '#C8A040');
+          px(ctx, bx - 17, by + 6,  3,  4, '#C04020'); // fletching
         }
+        pxOutline(ctx, bx - 9, by + 1, 3, 17, shade(bc, -40));
       } else {
-        // Held sideways
-        px(ctx, armX + 2, armY - 4, 3, 3, wc);
-        px(ctx, armX, armY - 1, 2, 5, wc);
-        px(ctx, armX + 2, armY + 4, 3, 3, wc);
-        px(ctx, armX + 3, armY - 4, 1, 12, '#D8D0C0');
-        if (attacking) px(ctx, armX - 2, armY + 3, 14, 2, '#C8A050');
+        px(ctx, armX + 1, armY - 4, 3, 3, wc);
+        px(ctx, armX - 1, armY - 1, 2, 5, wc);
+        px(ctx, armX + 1, armY + 4, 3, 3, wc);
+        px(ctx, armX + 3, armY - 4, 1, 12, '#E8DFC8');
+        if (attacking) {
+          px(ctx, armX - 4, armY + 3, 12, 2, '#C8A040');
+          px(ctx, armX - 5, armY + 2,  3,  4, '#C04020');
+        }
       }
       break;
     }
+
     case 'berserker': {
-      // Large axe
+      // Large battle axe — wide heavy blade
       if (facing === 'south') {
-        px(ctx, armX + 2, armY,     3, 28, shade(wc,-18));  // haft
-        px(ctx, armX - 3, armY + 2,  9, 10, wc);            // axe head
-        px(ctx, armX - 3, armY + 2,  9,  3, wlight);        // edge shine
-        px(ctx, armX - 3, armY + 10, 5,  4, shade(wc,-15)); // beard
+        const ax_ = armX;
+        const ay_ = armY - 2;
+        // Haft (handle) — long
+        px(ctx, ax_ + 2, ay_,     3, 32, shade(wd, -10));
+        px(ctx, ax_ + 2, ay_,     1, 32, shade(wd, 10));
+        // Axe head — wide asymmetric blade
+        px(ctx, ax_ - 6, ay_ + 2, 14,  4, wc);  // upper blade
+        px(ctx, ax_ - 6, ay_ + 2, 14,  1, wl);
+        px(ctx, ax_ - 5, ay_ + 6, 12,  4, wc);  // mid blade
+        px(ctx, ax_ - 4, ay_ + 10, 10,  3, wc); // lower blade
+        px(ctx, ax_ - 3, ay_ + 13,  7,  2, wd); // beard
+        // Edge shine
+        px(ctx, ax_ - 6, ay_ + 3,  1, 8, wl);
+        // Back edge
+        px(ctx, ax_ + 8, ay_ + 2,  1, 12, shade(wd, -10));
+        // Ferrule / bottom cap
+        px(ctx, ax_ + 1, ay_ + 30, 4,  3, metal);
+        pxOutline(ctx, ax_ - 6, ay_ + 2, 14, 4, wout);
+        pxOutline(ctx, ax_ - 5, ay_ + 6, 12, 4, wout);
       } else {
-        px(ctx, armX + 2, armY - 6,  3, 22, shade(wc,-18));
-        px(ctx, armX - 4, armY - 4, 10,  9, wc);
-        px(ctx, armX - 4, armY - 4, 10,  2, wlight);
+        px(ctx, armX + 2, armY - 6,  3, 24, shade(wd, -10));
+        px(ctx, armX - 6, armY - 4, 14,  4, wc);
+        px(ctx, armX - 6, armY - 4, 14,  1, wl);
+        px(ctx, armX - 5, armY,     12,  4, wc);
+        px(ctx, armX - 6, armY - 3,  1,  6, wl);
       }
       break;
     }
   }
 }
 
-export function drawClassAccessory(
-  ctx: CanvasRenderingContext2D,
-  char: CharacterDef,
-  cx: number, torsoY: number,
-  torsoW: number, armorColor: string
-) {
-  const tx = (cx - (torsoW >> 1)) | 0;
-  const ac = char.accentColor;
-  switch (char.class) {
-    case 'warrior':
-      // Pauldron rivets
-      px(ctx, tx + 1, torsoY + 2, 2, 2, shade(armorColor, 30));
-      px(ctx, tx + torsoW - 3, torsoY + 2, 2, 2, shade(armorColor, 30));
-      // Center chest detail
-      px(ctx, cx - 2, torsoY + 6, 4, 8, shade(ac, -20));
-      break;
-    case 'berserker':
-      // Chain/spike detail
-      px(ctx, tx + 2, torsoY + 5, 2, 2, ac);
-      px(ctx, tx + torsoW - 4, torsoY + 5, 2, 2, ac);
-      px(ctx, cx - 1, torsoY + 3, 2, 3, shade(ac,-10));
-      break;
-    case 'mage':
-      // Robe clasp + magical trim
-      px(ctx, cx - 1, torsoY + 2, 2, 14, shade(ac,-10));
-      px(ctx, cx - 3, torsoY + 7, 6, 2, ac);
-      px(ctx, cx - 1, torsoY + 12, 2, 2, shade(ac, 20));
-      break;
-    case 'paladin':
-      // Cross emblem
-      px(ctx, cx - 1, torsoY + 2, 3, 12, ac);
-      px(ctx, cx - 4, torsoY + 6, 9, 3, ac);
-      px(ctx, cx, torsoY + 5, 1, 1, shade(ac,40));
-      break;
-    case 'rogue':
-      // Straps / buckles
-      px(ctx, tx + 2, torsoY + 4, torsoW - 4, 2, shade(armorColor,-22));
-      px(ctx, tx + 4, torsoY + 8, torsoW - 8, 2, shade(armorColor,-22));
-      px(ctx, cx - 1, torsoY + 4, 2, 2, ac);
-      break;
-    case 'ranger':
-      // Quiver strap (diagonal)
-      px(ctx, tx + 2, torsoY + 1, 2, 14, shade(armorColor,-18));
-      px(ctx, tx + 5, torsoY + 1, 2, 14, shade(armorColor,-18));
-      break;
-  }
-}
+// ─── RARITY ACCENTS ──────────────────────────────────────────────────────────
 
-export function drawRarityAccent(
-  ctx: CanvasRenderingContext2D,
-  char: CharacterDef,
-  cx: number, baseY: number
-) {
+export function drawRarityAccent(ctx: CanvasRenderingContext2D, char: CharacterDef, cx: number, baseY: number) {
   const ac = char.accentColor;
   switch (char.rarity) {
-    case 'common':
-      break;
     case 'uncommon':
-      // Single accent dot on shoulder
-      px(ctx, cx + 8, baseY + 26, 2, 2, ac);
+      // Single gleam on shoulder
+      px(ctx, cx + 10, baseY + 25, 3, 3, ac);
+      px(ctx, cx + 11, baseY + 25, 1, 1, shade(ac, 40));
       break;
     case 'rare':
-      // Shoulder gems
-      px(ctx, cx - 10, baseY + 25, 3, 3, ac);
-      px(ctx, cx + 8,  baseY + 25, 3, 3, ac);
+      // Gem on both shoulders
+      px(ctx, cx - 12, baseY + 25, 3, 3, ac);
+      px(ctx, cx + 10, baseY + 25, 3, 3, ac);
+      px(ctx, cx - 11, baseY + 25, 1, 1, shade(ac, 40));
+      px(ctx, cx + 11, baseY + 25, 1, 1, shade(ac, 40));
       break;
     case 'epic':
-      // Trim line + gems
-      px(ctx, cx - 10, baseY + 23, 3, 3, ac);
-      px(ctx, cx +  8, baseY + 23, 3, 3, ac);
+      px(ctx, cx - 12, baseY + 23, 4, 4, ac);
+      px(ctx, cx + 9,  baseY + 23, 4, 4, ac);
+      px(ctx, cx - 11, baseY + 23, 2, 2, shade(ac, 40));
+      px(ctx, cx + 10, baseY + 23, 2, 2, shade(ac, 40));
       px(ctx, cx - 2,  baseY + 20, 4, 2, ac);
       break;
-    case 'legendary': {
-      // Glow highlights around shoulders + head
-      const half = 10;
-      px(ctx, cx - half - 1, baseY + 22, 2, 10, shade(ac, -10));
-      px(ctx, cx + half - 1, baseY + 22, 2, 10, shade(ac, -10));
-      px(ctx, cx - 1, baseY + 4, 2, 3, ac);
+    case 'legendary':
+      // Glowing edge highlights
+      px(ctx, cx - 14, baseY + 21, 2, 14, shade(ac, -12));
+      px(ctx, cx + 12, baseY + 21, 2, 14, shade(ac, -12));
+      px(ctx, cx - 12, baseY + 22, 4, 4, ac);
+      px(ctx, cx + 9,  baseY + 22, 4, 4, ac);
+      px(ctx, cx - 2,  baseY + 3,  4, 3, ac);
       break;
-    }
     case 'mythic':
-      // Premium crown-like highlights
-      px(ctx, cx - 1, baseY + 2, 2, 4, ac);
-      px(ctx, cx - 5, baseY + 4, 2, 3, shade(ac,-10));
-      px(ctx, cx + 4, baseY + 4, 2, 3, shade(ac,-10));
-      px(ctx, cx - 9, baseY + 23, 2, 8, shade(ac,-15));
-      px(ctx, cx + 8, baseY + 23, 2, 8, shade(ac,-15));
+      // Crown-like jewels + full edge glow
+      px(ctx, cx - 15, baseY + 20, 2, 18, shade(ac, -20));
+      px(ctx, cx + 13, baseY + 20, 2, 18, shade(ac, -20));
+      px(ctx, cx - 12, baseY + 21, 5, 5, ac);
+      px(ctx, cx + 8,  baseY + 21, 5, 5, ac);
+      px(ctx, cx - 11, baseY + 22, 3, 3, shade(ac, 40));
+      px(ctx, cx + 9,  baseY + 22, 3, 3, shade(ac, 40));
+      px(ctx, cx - 2,  baseY + 1,  4, 3, ac);
+      px(ctx, cx - 5,  baseY + 3,  2, 3, shade(ac,-15));
+      px(ctx, cx + 3,  baseY + 3,  2, 3, shade(ac,-15));
       break;
+    default: break;
   }
 }
 
-// ─── HELMET / CLASS HEADGEAR ──────────────────────────────────────────────────
-
-function drawHeadgear(
-  ctx: CanvasRenderingContext2D, char: CharacterDef,
-  cx: number, baseY: number, hw: number
-) {
-  const ac = char.accentColor;
-  const arm = AT[char.armorTier];
-
-  switch (char.class) {
-    case 'warrior':
-    case 'paladin': {
-      // Full helm with visor slit
-      px(ctx, cx - hw + 1, baseY + 5, hw * 2 - 2, 8, arm.b);
-      px(ctx, cx - hw + 1, baseY + 5, hw * 2 - 2, 2, arm.l);
-      // Visor slit
-      px(ctx, cx - 3, baseY + 10, 6, 2, shade(arm.blt, -10));
-      // Plume for uncommon+
-      if (char.rarity !== 'common') {
-        px(ctx, cx - 1, baseY - 1, 3, 7, ac);
-        px(ctx, cx,     baseY - 2, 1, 3, shade(ac, 20));
-      }
-      break;
-    }
-    case 'mage': {
-      // Pointed wizard hat
-      const hc = shade(char.armorColor, 15);
-      px(ctx, cx - hw,     baseY + 7, hw * 2, 5, hc);
-      px(ctx, cx - 6,      baseY + 2, 12,     6, hc);
-      px(ctx, cx - 4,      baseY - 2, 8,      5, hc);
-      px(ctx, cx - 2,      baseY - 6, 4,      5, hc);
-      px(ctx, cx - 1,      baseY - 9, 2,      4, hc);
-      // Hat band
-      px(ctx, cx - hw, baseY + 7, hw * 2, 2, ac);
-      break;
-    }
-    case 'rogue': {
-      // Close hood over head
-      const hc = shade(char.armorColor, 8);
-      px(ctx, cx - hw - 1, baseY + 4, hw * 2 + 2, 12, hc);
-      px(ctx, cx - hw + 1, baseY + 2, hw * 2 - 2,  4, hc);
-      px(ctx, cx - hw + 3, baseY,     hw * 2 - 6,  3, hc);
-      // Shadow inside hood
-      px(ctx, cx - 4, baseY + 8, 8, 4, shade(hc, -30));
-      break;
-    }
-    case 'ranger': {
-      // Leather cap with feather
-      px(ctx, cx - hw + 2, baseY + 5, hw * 2 - 4, 5, AT.leather.b);
-      px(ctx, cx - hw + 2, baseY + 5, hw * 2 - 4, 2, AT.leather.l);
-      // Feather
-      if (char.rarity !== 'common') {
-        px(ctx, cx + hw - 3, baseY + 1, 2, 6, ac);
-        px(ctx, cx + hw - 4, baseY,     2, 3, shade(ac, 15));
-      }
-      break;
-    }
-    case 'berserker': {
-      // Horned headband
-      px(ctx, cx - hw, baseY + 9, hw * 2, 4, shade(arm.b,-20));
-      px(ctx, cx - hw, baseY + 9, hw * 2, 2, ac);
-      // Horns
-      px(ctx, cx - hw - 3, baseY + 4, 4, 7, shade(arm.b, -30));
-      px(ctx, cx + hw - 1, baseY + 4, 4, 7, shade(arm.b, -30));
-      px(ctx, cx - hw - 2, baseY + 3, 2, 2, shade(arm.b, -40));
-      px(ctx, cx + hw,     baseY + 3, 2, 2, shade(arm.b, -40));
-      break;
-    }
-  }
-}
-
-// ─── DRAW SOUTH FRAME ─────────────────────────────────────────────────────────
+// ─── DRAW SOUTH (main front-facing frame) ─────────────────────────────────────
 
 function drawSouth(
   ctx: CanvasRenderingContext2D,
@@ -635,129 +981,167 @@ function drawSouth(
   anim: AnimType,
   frameIdx: number
 ) {
-  const m = RACE_METRICS[char.race];
-  const cx = 24;
-  const baseY = m.dy + bob;
-  const arm   = AT[char.armorTier];
+  const m   = RACE_METRICS[char.race];
+  const cx  = 24;
+  const by  = m.dy + bob;
+  const arm = AT[char.armorTier];
   const isAttack = anim === 'attack';
-  const isCast   = anim === 'cast';
-  const ap   = isAttack ? ATTACK_PHASES[frameIdx & 3] : null;
+  const isMage   = char.class === 'mage';
 
-  // Contact shadow
-  drawContactShadow(ctx, cx, 61, (m.torsoW >> 1) + 2);
+  const ap = isAttack ? ATTACK_PHASES[frameIdx & 3] : null;
 
-  // ── BACK ARM ──
-  const backArmY = isAttack ? (baseY + 26) : (baseY + 26 + ((wp.la * 3) >> 3));
-  const backArmX = cx - 15;
-  drawArms(ctx, cx, backArmY, 7, 12, 15, 0, arm.b, char.skinColor, true);
+  // ── Contact shadow ──
+  drawContactShadow(ctx, cx, 62, isMage ? 12 : (m.torsoW >> 1) + 4);
 
-  // ── SHIELD (warrior/paladin left hand) ──
-  if ((char.class === 'warrior' || char.class === 'paladin') && !isAttack) {
-    const sx = backArmX - 5;
-    const sy = backArmY - 2;
-    px(ctx, sx, sy, 6, 14, arm.b);
-    px(ctx, sx, sy, 6, 2, arm.l);
-    px(ctx, sx, sy + 5, 6, 2, shade(char.accentColor, -10));
-    pxOutline(ctx, sx, sy, 6, 14, shade(arm.b, -40));
+  // ── Paladin cape (drawn behind everything) ──
+  if (char.class === 'paladin') {
+    const capeC = shade(char.accentColor, -35);
+    const capeX = (cx - (m.torsoW >> 1)) - 3;
+    const capeY = by + 28;
+    px(ctx, capeX, capeY, m.torsoW + 6, 22, capeC);
+    px(ctx, capeX, capeY, m.torsoW + 6, 2, shade(capeC, 15));
+    px(ctx, capeX + 1, capeY + 20, m.torsoW + 4, 2, shade(capeC, -20));
+    pxOutline(ctx, capeX, capeY, m.torsoW + 6, 22, shade(capeC, -45));
   }
 
-  // ── LEGS ──
-  const legTopY  = baseY + 43;
-  const leftDy   = isAttack ? 0 : wp.ly;
-  const rightDy  = isAttack ? 0 : wp.ry;
-  drawLegs(ctx, cx, legTopY, m.legH > 9 ? 9 : m.legH, m.legH, leftDy, rightDy, arm.b);
+  // ── Back arm ──
+  const backArmY = isAttack ? (by + 26) : (by + 26 + ((wp.la * 3) >> 3));
+  drawArms(ctx, cx, backArmY, 7, 13, 16, 0, arm.b, char.skinColor, true);
 
-  // ── TORSO ──
-  const torsoY  = baseY + 24;
-  const torsoW  = (char.class === 'berserker') ? m.torsoW + 4 : m.torsoW;
-  drawTorsoArmor(ctx, cx, torsoY, torsoW, m.torsoH, arm.b, arm.l, arm.d, arm.blt,
-    char.class, char.accentColor, char.class === 'berserker');
-  drawClassAccessory(ctx, char, cx, torsoY, torsoW, arm.b);
+  // ── MAGE: back of staff (drawn before robe) ──
+  if (isMage) {
+    const staffX = cx - 14;
+    const staffY = by + 5;
+    px(ctx, staffX, staffY + 4, 2, 34, shade(char.weaponTint, -30));
+  }
 
-  // ── NECK ──
-  px(ctx, cx - 3, baseY + 21, 6, 5, char.skinColor);
+  if (isMage) {
+    // ── MAGE: Full robe (replaces legs + torso) ──
+    drawMageRobe(ctx, cx, by, char);
+  } else {
+    // ── STANDARD: Legs ──
+    const legTopY = by + 44;
+    const lDy = isAttack ? 0 : wp.ly;
+    const rDy = isAttack ? 0 : wp.ry;
+    drawLegs(ctx, cx, legTopY, m.legH > 9 ? 9 : m.legH, m.legH, lDy, rDy, arm.b);
 
-  // ── HEAD ──
-  const headCY = baseY + 13;
+    // ── STANDARD: Torso ──
+    const torsoY = by + 24;
+    const torsoW = (char.class === 'berserker') ? m.torsoW + 4 : m.torsoW;
+    drawTorsoArmor(ctx, cx, torsoY, torsoW, m.torsoH, arm.b, arm.l, arm.d, arm.blt,
+      char.class, char.accentColor, char.class === 'berserker');
+
+    // ── Shield (warrior/paladin back hand) ──
+    if ((char.class === 'warrior' || char.class === 'paladin') && !isAttack) {
+      const shieldX = cx - (m.torsoW >> 1) - 14;
+      const shieldY = by + 27;
+      drawShield(ctx, char, shieldX, shieldY);
+    }
+  }
+
+  // ── Neck ──
+  px(ctx, cx - 3, by + 21, 6, 5, char.skinColor);
+  px(ctx, cx - 2, by + 21, 4, 1, shade(char.skinColor, -15)); // neck shadow top
+  pxOutline(ctx, cx - 3, by + 21, 6, 5, '#1A1420');
+
+  // ── Head ──
+  const headCY = by + 13;
   drawHead(ctx, cx, headCY, m.headW, m.headH, char.skinColor);
 
-  // ── HAIR ──
-  drawHair(ctx, cx, headCY, m.headW, m.headH, char.hairColor, char.class);
-
-  // ── HEADGEAR ──
-  drawHeadgear(ctx, char, cx, baseY, m.headW >> 1);
-
-  // ── EYES ──
-  px(ctx, cx - 6, baseY + 13, 3, 2, char.eyeColor);
-  px(ctx, cx + 3, baseY + 13, 3, 2, char.eyeColor);
-  px(ctx, cx - 5, baseY + 13, 1, 2, '#18141C');
-  px(ctx, cx + 4, baseY + 13, 1, 2, '#18141C');
-
-  // ── FRONT ARM + WEAPON ──
-  if (ap) {
-    const fax = cx + 7 + ap.armX;
-    const fay = baseY + 26 + ap.armY;
-    drawArms(ctx, cx + 7 + ap.armX + 7, fay, 7, 12, 0, 0, arm.b, char.skinColor, false);
-    drawWeapon(ctx, char, fax, fay, true, frameIdx, 'south');
-  } else if (isCast) {
-    // Both arms raised
-    drawArms(ctx, cx + 10, baseY + 18, 7, 12, 0, 0, arm.b, char.skinColor, false);
-    drawWeapon(ctx, char, cx + 8, baseY + 16, false, 0, 'south');
-  } else {
-    const fax = cx + 7;
-    const fay = baseY + 26 + ((wp.ra * 3) >> 3);
-    drawArms(ctx, cx + 7 + 7, fay, 7, 12, 0, 0, arm.b, char.skinColor, false);
-    drawWeapon(ctx, char, fax, fay, false, 0, 'south');
+  // ── Hair (before headgear so gear overlaps it) ──
+  if (char.class !== 'warrior' && char.class !== 'paladin') {
+    drawHair(ctx, cx, headCY, m.headW, m.headH, char.hairColor, char.class);
   }
 
-  // ── RARITY ACCENT ──
-  drawRarityAccent(ctx, char, cx, baseY);
+  // ── Headgear ──
+  drawHeadgear(ctx, char, cx, by, m.headW >> 1);
+
+  // ── Face (eyes + brows) — drawn after headgear ──
+  const eyeY = by + 12;
+  if (char.class !== 'warrior' && char.class !== 'paladin') {
+    // Open face — draw eyes normally
+    drawFace(ctx, cx, eyeY, char.eyeColor, char.hairColor);
+  } else {
+    // Visor slit eye glow
+    px(ctx, cx - 4, eyeY + 1, 8, 1, shade(char.eyeColor, 20));
+  }
+
+  // ── Front arm + weapon ──
+  if (ap) {
+    const fax = cx + 7 + ap.armX;
+    const fay = by + 26 + ap.armY;
+    drawArms(ctx, fax + 7, fay, 7, 13, 0, 0, arm.b, char.skinColor, false);
+    drawWeapon(ctx, char, fax, fay, true, frameIdx, 'south');
+  } else {
+    const fay = by + 26 + ((wp.ra * 3) >> 3);
+    drawArms(ctx, cx + 7 + 7, fay, 7, 13, 0, 0, arm.b, char.skinColor, false);
+    drawWeapon(ctx, char, cx + 7, fay, false, 0, 'south');
+  }
+
+  // ── Rarity accent ──
+  drawRarityAccent(ctx, char, cx, by);
 }
 
-// ─── DRAW NORTH FRAME ─────────────────────────────────────────────────────────
+// ─── DRAW NORTH (back view) ──────────────────────────────────────────────────
 
 function drawNorth(ctx: CanvasRenderingContext2D, char: CharacterDef, wp: WalkPhase, bob: number) {
-  const m  = RACE_METRICS[char.race];
-  const cx = 24;
-  const by = m.dy + bob;
+  const m   = RACE_METRICS[char.race];
+  const cx  = 24;
+  const by  = m.dy + bob;
   const arm = AT[char.armorTier];
 
-  drawContactShadow(ctx, cx, 61, (m.torsoW >> 1) + 2);
+  drawContactShadow(ctx, cx, 62, (m.torsoW >> 1) + 4);
 
-  // Legs (same as south, back view)
-  drawLegs(ctx, cx, by + 43, m.legH > 9 ? 9 : m.legH, m.legH, wp.ly, wp.ry, shade(arm.b, -10));
+  // Legs / robe back
+  if (char.class === 'mage') {
+    const rc = char.armorColor;
+    // Robe back view
+    const rw = 22;
+    const ry = by + 24;
+    px(ctx, (cx - (rw >> 1)) | 0, ry, rw, 32, shade(rc, -12));
+    px(ctx, (cx - (rw >> 1)) | 0, ry, rw, 2, shade(rc, 10));
+    pxOutline(ctx, (cx - (rw >> 1)) | 0, ry, rw, 32, shade(rc, -55));
+  } else {
+    drawLegs(ctx, cx, by + 44, m.legH > 9 ? 9 : m.legH, m.legH, wp.ly, wp.ry, shade(arm.b, -10));
+    // Back of torso (slightly darker)
+    const torsoW = (char.class === 'berserker') ? m.torsoW + 4 : m.torsoW;
+    const tx     = (cx - (torsoW >> 1)) | 0;
+    px(ctx, tx, by + 24, torsoW, m.torsoH, shade(arm.b, -12));
+    px(ctx, tx + 2, by + 24, torsoW - 4, 2, shade(arm.l, -8));
+    px(ctx, tx - 1, by + 24 + m.torsoH, torsoW + 2, 4, arm.blt);
+    pxOutline(ctx, tx, by + 24, torsoW, m.torsoH, shade(arm.b, -50));
+    // Cape back for paladin
+    if (char.class === 'paladin') {
+      px(ctx, tx - 3, by + 28, torsoW + 6, 22, shade(char.accentColor, -45));
+    }
+  }
 
-  // Arms (wider from behind)
-  px(ctx, cx - 16, by + 26 + ((wp.la * 3) >> 3), 7, 12, shade(arm.b, -8));
-  px(ctx, cx + 9,  by + 26 - ((wp.la * 3) >> 3), 7, 12, shade(arm.b, -8));
+  // Arms (back of arms visible from behind)
+  px(ctx, cx - 16, by + 26 + ((wp.la * 3) >> 3), 7, 13, shade(arm.b, -8));
+  px(ctx, cx + 9,  by + 26 - ((wp.la * 3) >> 3), 7, 13, shade(arm.b, -8));
 
-  // Torso back (slightly darker)
-  const torsoW = (char.class === 'berserker') ? m.torsoW + 4 : m.torsoW;
-  const tx     = (cx - (torsoW >> 1)) | 0;
-  px(ctx, tx, by + 24, torsoW, m.torsoH, shade(arm.b, -12));
-  px(ctx, tx + 2, by + 24, torsoW - 4, 2, shade(arm.l, -8));
-  px(ctx, tx - 1, by + 24 + m.torsoH, torsoW + 2, 4, arm.blt);
-  pxOutline(ctx, tx, by + 24, torsoW, m.torsoH, shade(arm.b, -45));
-
-  // Neck back
+  // Neck (back)
   px(ctx, cx - 3, by + 20, 6, 5, shade(char.skinColor, -12));
 
-  // Head back
+  // Head (back)
   const headCY = by + 13;
   drawHead(ctx, cx, headCY, m.headW, m.headH, shade(char.skinColor, -12));
 
-  // Back hair (more visible)
+  // Back hair (more visible from behind)
   const hx = (cx - (m.headW >> 1)) | 0;
   const hy = (headCY - (m.headH >> 1)) | 0;
-  px(ctx, hx + 1, hy - 1, m.headW - 2, 8, char.hairColor);
-  px(ctx, hx - 1, hy + 3, m.headW + 2, 7, char.hairColor);
-  if (char.class !== 'mage' && char.class !== 'paladin') {
-    px(ctx, hx, hy + 12, m.headW, 6, char.hairColor);
+  px(ctx, hx + 1, hy - 1, m.headW - 2, 9,  char.hairColor);
+  px(ctx, hx - 1, hy + 3, m.headW + 2, 7,  char.hairColor);
+  px(ctx, hx + 3, hy - 2, m.headW - 6, 4,  shade(char.hairColor, 15)); // hair highlight
+  if (char.class !== 'warrior' && char.class !== 'paladin') {
+    px(ctx, hx, hy + 11, m.headW, 7, char.hairColor); // longer back hair
   }
+
+  // Headgear (back)
   drawHeadgear(ctx, char, cx, by, m.headW >> 1);
 }
 
-// ─── DRAW EAST FRAME ─────────────────────────────────────────────────────────
+// ─── DRAW EAST (side view) ───────────────────────────────────────────────────
 
 function drawEast(
   ctx: CanvasRenderingContext2D,
@@ -767,78 +1151,108 @@ function drawEast(
   anim: AnimType,
   frameIdx: number
 ) {
-  const m  = RACE_METRICS[char.race];
-  const cx = 24;
-  const by = m.dy + bob;
+  const m   = RACE_METRICS[char.race];
+  const cx  = 24;
+  const by  = m.dy + bob;
   const arm = AT[char.armorTier];
   const isAttack = anim === 'attack';
+  const isMage   = char.class === 'mage';
   const ap = isAttack ? ATTACK_PHASES[frameIdx & 3] : null;
 
-  drawContactShadow(ctx, cx, 61, 9);
+  drawContactShadow(ctx, cx, 62, isMage ? 8 : 10);
 
   // Back leg
-  const backLegY = (by + 43 + (isAttack ? 0 : wp.ry)) | 0;
-  px(ctx, cx - 3, backLegY, 7, m.legH, shade(arm.b, -18));
-  px(ctx, cx - 4, backLegY + m.legH, 9, 5, shade(arm.b, -35));
+  if (!isMage) {
+    const bly = (by + 44 + (isAttack ? 0 : wp.ry)) | 0;
+    px(ctx, cx - 3, bly, 7, m.legH, shade(arm.b, -20));
+    px(ctx, cx - 4, bly + m.legH, 8, 4, shade(arm.b, -38));
+    pxOutline(ctx, cx - 3, bly, 7, m.legH + 4, shade(arm.b, -55));
+  }
 
   // Back arm
-  const backArmY2 = (by + 26 + (isAttack ? 0 : ((wp.la * 3) >> 3))) | 0;
-  px(ctx, cx - 9, backArmY2, 6, 12, shade(arm.b, -22));
-  px(ctx, cx - 9, backArmY2 + 12, 6, 4, shade(char.skinColor, -10));
+  const bay = (by + 26 + (isAttack ? 0 : ((wp.la * 3) >> 3))) | 0;
+  px(ctx, cx - 10, bay, 6, 13, shade(arm.b, -22));
+  px(ctx, cx - 10, bay + 13, 6, 4, shade(char.skinColor, -10));
+  pxOutline(ctx, cx - 10, bay, 6, 17, shade(arm.b, -55));
 
-  // Torso side view (narrower)
-  px(ctx, cx - 8, by + 24, 14, m.torsoH, arm.b);
-  px(ctx, cx - 8, by + 24, 14, 3, arm.l);
-  px(ctx, cx + 4,  by + 26, 2, m.torsoH - 3, arm.d);
-  px(ctx, cx - 9, by + 24 + m.torsoH, 16, 4, arm.blt);
-  pxOutline(ctx, cx - 8, by + 24, 14, m.torsoH, shade(arm.b, -40));
+  // Torso/robe (side view — narrow)
+  if (isMage) {
+    // Robe side profile
+    const rc = char.armorColor;
+    const rw = 12;
+    const rtx = cx - (rw >> 1);
+    px(ctx, rtx, by + 24, rw, 34, rc);
+    px(ctx, rtx, by + 24, rw, 3, shade(rc, 18));
+    px(ctx, rtx + rw - 2, by + 26, 2, 32, shade(rc, -20));
+    pxOutline(ctx, rtx, by + 24, rw, 34, shade(rc, -55));
+  } else {
+    px(ctx, cx - 8, by + 24, 14, m.torsoH, arm.b);
+    px(ctx, cx - 8, by + 24, 14, 3, arm.l);
+    px(ctx, cx + 4, by + 27, 2, m.torsoH - 4, arm.d);
+    px(ctx, cx - 9, by + 24 + m.torsoH, 16, 4, arm.blt);
+    pxOutline(ctx, cx - 8, by + 24, 14, m.torsoH, shade(arm.b, -50));
+  }
 
   // Neck
   px(ctx, cx - 3, by + 21, 5, 5, char.skinColor);
+  pxOutline(ctx, cx - 3, by + 21, 5, 5, '#1A1420');
 
   // Head profile
   const headCY = by + 13;
-  const hx  = cx - (m.headW >> 1) + 1;
-  const hhy = headCY - (m.headH >> 1);
-  pxRound(ctx, hx, hhy, m.headW - 2, m.headH, char.skinColor);
+  const hpx  = cx - (m.headW >> 1) + 1;
+  const hpy  = headCY - (m.headH >> 1);
+  pxRound(ctx, hpx, hpy, m.headW - 2, m.headH, char.skinColor);
+  pxOutline(ctx, hpx, hpy, m.headW - 2, m.headH, '#1A1420');
   // Nose
-  px(ctx, hx + m.headW - 4, hhy + 6, 3, 3, shade(char.skinColor, -15));
+  px(ctx, hpx + m.headW - 5, hpy + 6, 4, 3, shade(char.skinColor, -16));
+  px(ctx, hpx + m.headW - 4, hpy + 5, 2, 1, shade(char.skinColor, -8));
   // Jaw shadow
-  px(ctx, hx + 2, hhy + m.headH - 4, m.headW - 5, 3, shade(char.skinColor, -18));
+  px(ctx, hpx + 2, hpy + m.headH - 5, m.headW - 5, 4, shade(char.skinColor, -20));
+  // Cheek highlight
+  px(ctx, hpx + 2, hpy + 3, 3, 5, shade(char.skinColor, 14));
 
   // Profile hair
-  px(ctx, hx - 2, hhy - 1, m.headW - 2, 7, char.hairColor);
-  px(ctx, hx - 3, hhy + 2, 4, 8, char.hairColor);
-  if (char.class !== 'mage') px(ctx, hx - 2, hhy + 7, 3, 7, char.hairColor);
+  if (char.class !== 'warrior' && char.class !== 'paladin') {
+    px(ctx, hpx - 2, hpy - 1, m.headW - 1, 8, char.hairColor);
+    px(ctx, hpx - 3, hpy + 2, 4, 9, char.hairColor);
+    if (char.class !== 'mage') px(ctx, hpx - 2, hpy + 8, 3, 8, char.hairColor);
+    px(ctx, hpx, hpy - 2, m.headW - 5, 4, shade(char.hairColor, 15)); // hair highlight
+  }
+
+  // Headgear (side)
   drawHeadgear(ctx, char, cx + 2, by, (m.headW >> 1) - 1);
 
-  // Eye (profile)
-  px(ctx, hx + m.headW - 6, hhy + 5, 2, 2, char.eyeColor);
-  px(ctx, hx + m.headW - 6, hhy + 5, 1, 2, '#18141C');
+  // Profile eye
+  const epy = hpy + 5;
+  const epx = hpx + m.headW - 6;
+  px(ctx, epx, epy, 2, 2, char.eyeColor);
+  px(ctx, epx, epy, 1, 2, '#160C18');
+  px(ctx, epx, epy,  1, 1, shade(char.eyeColor, 45));
+  // Eyebrow
+  px(ctx, epx - 1, epy - 2, 3, 1, shade(char.hairColor, -15));
 
   // Front leg
-  const frontLegY = (by + 43 + (isAttack ? 0 : wp.ly)) | 0;
-  px(ctx, cx - 3, frontLegY, 7, m.legH, arm.b);
-  px(ctx, cx - 3, frontLegY, 7, 3, shade(arm.b, 18));
-  px(ctx, cx - 4, frontLegY + m.legH, 9, 5, shade(arm.b, -28));
-  pxOutline(ctx, cx - 3, frontLegY, 7, m.legH + 5, shade(arm.b, -40));
-
-  // Front arm + weapon
-  if (ap) {
-    px(ctx, cx + 4 + ap.armX, by + 26, 6, 12, arm.b);
-    px(ctx, cx + 4 + ap.armX, by + 26 + 12, 6, 4, shade(char.skinColor, -10));
-    drawWeapon(ctx, char, cx + 4 + ap.armX, by + 26, true, frameIdx, 'east');
-  } else {
-    const fay = (by + 26 - ((wp.la * 3) >> 3)) | 0;
-    px(ctx, cx + 4, fay, 6, 12, arm.b);
-    px(ctx, cx + 4, fay + 12, 6, 4, shade(char.skinColor, -10));
-    drawWeapon(ctx, char, cx + 4, fay, false, 0, 'east');
+  if (!isMage) {
+    const fly = (by + 44 + (isAttack ? 0 : wp.ly)) | 0;
+    px(ctx, cx - 3, fly, 7, m.legH, arm.b);
+    px(ctx, cx - 3, fly, 7, 3, shade(arm.b, 18));
+    px(ctx, cx - 3, fly + m.legH, 9, 5, shade(arm.b, -30));
+    pxOutline(ctx, cx - 3, fly, 7, m.legH + 5, shade(arm.b, -50));
   }
+
+  // Front arm + weapon (side)
+  const fay2 = ap ? (by + 26 + ap.armY) : (by + 26 - ((wp.la * 3) >> 3));
+  const fax2 = ap ? (cx + 4 + ap.armX) : cx + 4;
+  px(ctx, fax2, fay2, 6, 13, arm.b);
+  px(ctx, fax2, fay2, 1, 13, shade(arm.b, 18));
+  px(ctx, fax2, fay2 + 13, 6, 4, shade(char.skinColor, -10));
+  pxOutline(ctx, fax2, fay2, 6, 17, shade(arm.b, -50));
+  drawWeapon(ctx, char, fax2, fay2, isAttack, frameIdx, 'east');
 
   drawRarityAccent(ctx, char, cx, by);
 }
 
-// ─── DRAW WEST FRAME (mirror east) ───────────────────────────────────────────
+// ─── DRAW WEST (mirror of east) ──────────────────────────────────────────────
 
 function drawWest(ctx: CanvasRenderingContext2D, char: CharacterDef, wp: WalkPhase, bob: number, anim: AnimType, frameIdx: number) {
   ctx.save();
@@ -849,78 +1263,86 @@ function drawWest(ctx: CanvasRenderingContext2D, char: CharacterDef, wp: WalkPha
   ctx.restore();
 }
 
-// ─── DRAW HURT FRAME ─────────────────────────────────────────────────────────
+// ─── DRAW HURT ───────────────────────────────────────────────────────────────
 
 function drawHurt(ctx: CanvasRenderingContext2D, char: CharacterDef, frameIdx: number) {
-  // Recoil pose: body tilted back, arms thrown back
   const hurtBob = [2, 4, 3, 1];
-  const hurtX   = [0, 2, 1, 0];
+  const hurtDx  = [0, 2, 1, 0];
   const bob = hurtBob[frameIdx & 3];
-  const dx  = hurtX[frameIdx & 3];
-  const wp: WalkPhase = { ly: 0, ry: 0, by: 0, la: -4, ra: -4 };
-  // Draw south with slight offset and "hurt" tint
+  const dx  = hurtDx[frameIdx & 3];
+  const wp: WalkPhase = { ly: 0, ry: 0, by: 0, la: -3, ra: -3 };
   ctx.save();
   ctx.translate(dx, 0);
   drawSouth(ctx, char, wp, bob, 'idle', 0);
-  // Red flash overlay
-  ctx.fillStyle = `rgba(255,40,40,${0.08 + frameIdx * 0.04})`;
-  ctx.fillRect(8, 4, 32, 52);
+  // Red flash
+  ctx.fillStyle = `rgba(220,30,30,${0.10 + (frameIdx & 3) * 0.05})`;
+  ctx.fillRect(6, 4, 36, 52);
   ctx.restore();
 }
 
-// ─── DRAW DEATH FRAME ────────────────────────────────────────────────────────
+// ─── DRAW DEATH ──────────────────────────────────────────────────────────────
 
 function drawDeath(ctx: CanvasRenderingContext2D, char: CharacterDef, frameIdx: number) {
-  // Falling sequence: character tilts and lowers
-  const deathDy = [0, 8, 16, 20];
-  const dy = deathDy[frameIdx & 3];
-
+  const deathDy = [0, 8, 16, 22];
+  const dy  = deathDy[frameIdx & 3];
   const m   = RACE_METRICS[char.race];
   const cx  = 24;
   const by  = m.dy + dy;
   const arm = AT[char.armorTier];
 
-  // For death, draw a "lying flat" pose at frame 3, or tilting at earlier frames
   if (frameIdx >= 3) {
-    // Lying flat: draw horizontally collapsed
-    const groundY = 54;
-    drawContactShadow(ctx, cx, 56, (m.torsoW >> 1) + 4);
-    px(ctx, cx - (m.torsoW >> 1) - 2, groundY - 4, m.torsoW + 4, m.torsoH - 8, shade(arm.b,-15));
-    px(ctx, cx - (m.headW >> 1) + m.torsoW / 2 + 2, groundY - 4, m.headW, m.headH - 6, shade(char.skinColor, -20));
+    // Lying flat on ground
+    const groundY = 52;
+    drawContactShadow(ctx, cx, 56, (m.torsoW >> 1) + 6);
+    // Body lying horizontally
+    px(ctx, cx - (m.torsoW >> 1) - 2, groundY - 4, m.torsoW + 4, m.torsoH - 8, shade(arm.b, -18));
+    pxOutline(ctx, cx - (m.torsoW >> 1) - 2, groundY - 4, m.torsoW + 4, m.torsoH - 8, shade(arm.b, -55));
+    // Head to the side
+    const hx = cx + (m.torsoW >> 1);
+    px(ctx, hx, groundY - 4, m.headW, m.headH - 6, shade(char.skinColor, -22));
+    pxOutline(ctx, hx, groundY - 4, m.headW, m.headH - 6, '#1A1420');
     return;
   }
 
-  // Falling: tilt forward
-  drawContactShadow(ctx, cx, 61, (m.torsoW >> 1) + 2);
+  // Falling: tilts down as dy increases
+  drawContactShadow(ctx, cx, 62, (m.torsoW >> 1) + 4);
   const wp: WalkPhase = { ly: dy >> 1, ry: dy >> 1, by: 0, la: dy, ra: dy };
   drawSouth(ctx, char, wp, by - m.dy, 'idle', 0);
 }
 
-// ─── DRAW CAST FRAME ─────────────────────────────────────────────────────────
+// ─── DRAW CAST ───────────────────────────────────────────────────────────────
 
 function drawCast(ctx: CanvasRenderingContext2D, char: CharacterDef, frameIdx: number) {
   const castBob = [0, -1, -2, -1];
   const bob = castBob[frameIdx & 3];
   drawSouth(ctx, char, WALK_PHASES[0], bob, 'cast', frameIdx);
-  // Spell energy glow
-  const m  = RACE_METRICS[char.race];
-  const cx = 24;
-  const by = m.dy + bob;
+  // Spell glow for mage/paladin
   if (char.class === 'mage' || char.class === 'paladin') {
+    const m  = RACE_METRICS[char.race];
+    const cx = 24;
+    const by = m.dy + bob;
     const gc = char.accentColor;
-    const alpha = 0.15 + (frameIdx & 3) * 0.06;
-    ctx.fillStyle = gc + Math.round(alpha * 255).toString(16).padStart(2, '0');
-    ctx.fillRect((cx - 10) | 0, (by + 10) | 0, 20, 20);
+    const alpha = 0.12 + (frameIdx & 3) * 0.06;
+    const alphaHex = Math.round(alpha * 255).toString(16).padStart(2, '0');
+    ctx.fillStyle = gc + alphaHex;
+    ctx.fillRect((cx - 12) | 0, (by + 8) | 0, 24, 24);
   }
 }
 
-// ─── PUBLIC API: RENDER SINGLE FRAME ─────────────────────────────────────────
+// ─── PUBLIC API ───────────────────────────────────────────────────────────────
+
+export interface RenderFrameOptions {
+  contactShadow?: boolean;
+}
 
 export function renderCharacterFrame(
   char: CharacterDef,
   anim: AnimType,
-  frameIdx: number
+  frameIdx: number,
+  opts?: RenderFrameOptions
 ): HTMLCanvasElement {
+  _skipContactShadow = opts?.contactShadow === false;
+
   const canvas = document.createElement('canvas');
   canvas.width  = CHAR_FRAME_W;
   canvas.height = CHAR_FRAME_H;
@@ -945,12 +1367,12 @@ export function renderCharacterFrame(
     case 'death':      drawDeath(ctx, char, fi); break;
     default:           drawSouth(ctx, char, WALK_PHASES[0], bob, 'idle', fi); break;
   }
+
+  _skipContactShadow = false;
   return canvas;
 }
 
-// ─── PUBLIC API: RENDER SPRITE SHEET (192 × 576) ─────────────────────────────
-
-export function renderCharacterSheet(char: CharacterDef): HTMLCanvasElement {
+export function renderCharacterSheet(char: CharacterDef, opts?: RenderFrameOptions): HTMLCanvasElement {
   const canvas = document.createElement('canvas');
   canvas.width  = CHAR_SHEET_COLS * CHAR_FRAME_W;   // 192
   canvas.height = CHAR_SHEET_ROWS * CHAR_FRAME_H;   // 576
@@ -963,31 +1385,28 @@ export function renderCharacterSheet(char: CharacterDef): HTMLCanvasElement {
   ];
   anims.forEach((a, row) => {
     for (let col = 0; col < CHAR_SHEET_COLS; col++) {
-      const frame = renderCharacterFrame(char, a, col);
+      const frame = renderCharacterFrame(char, a, col, opts);
       ctx.drawImage(frame, col * CHAR_FRAME_W, row * CHAR_FRAME_H);
     }
   });
   return canvas;
 }
 
-// ─── PUBLIC API: THUMBNAIL (idle south frame 0) ──────────────────────────────
-
 export function renderCharacterThumb(char: CharacterDef): HTMLCanvasElement {
   return renderCharacterFrame(char, 'idle', 0);
 }
-
-// ─── PUBLIC API: PACK ALL CHARACTER SHEETS INTO ATLAS ────────────────────────
 
 export interface CharAtlasResult {
   atlasCanvas: HTMLCanvasElement;
   positions: Record<string, { x: number; y: number; sheetW: number; sheetH: number }>;
 }
 
-export function packCharacterAtlas(): CharAtlasResult {
+export function packCharacterAtlas(chars?: CharacterDef[]): CharAtlasResult {
+  const characters = chars ?? ALL_CHARACTERS;
   const COLS  = 8;
   const sheetW = CHAR_SHEET_COLS * CHAR_FRAME_W;  // 192
   const sheetH = CHAR_SHEET_ROWS * CHAR_FRAME_H;  // 576
-  const rows  = Math.ceil(ALL_CHARACTERS.length / COLS);
+  const rows  = Math.ceil(characters.length / COLS);
 
   const atlas = document.createElement('canvas');
   atlas.width  = COLS * sheetW;
@@ -996,7 +1415,7 @@ export function packCharacterAtlas(): CharAtlasResult {
   ctx.imageSmoothingEnabled = false;
 
   const positions: CharAtlasResult['positions'] = {};
-  ALL_CHARACTERS.forEach((char, i) => {
+  characters.forEach((char, i) => {
     const col = i % COLS;
     const row = Math.floor(i / COLS);
     const x   = col * sheetW;
