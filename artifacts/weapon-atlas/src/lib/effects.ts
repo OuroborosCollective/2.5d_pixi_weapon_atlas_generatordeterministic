@@ -15,7 +15,12 @@ function glowRim(ctx: CanvasRenderingContext2D, color: string, alpha: number, bl
   ctx.lineWidth = spread;
   const m = spread / 2 + 2;
   ctx.beginPath();
-  ctx.roundRect(m, m, SIZE - m * 2, SIZE - m * 2, 8);
+  ctx.roundRect(m, m, SIZE - m * 2, SIZE - m * 2, 10);
+  ctx.stroke();
+
+  // Secondary softer glow
+  ctx.shadowBlur = blur * 1.5;
+  ctx.lineWidth = spread * 0.5;
   ctx.stroke();
   ctx.restore();
 }
@@ -55,12 +60,14 @@ function particles(ctx: CanvasRenderingContext2D, color: string, count: number, 
 }
 
 function outerGlow(ctx: CanvasRenderingContext2D, color: string, alpha: number, radius: number) {
-  const rg = ctx.createRadialGradient(CX, CY, radius * 0.55, CX, CY, radius);
+  const rg = ctx.createRadialGradient(CX, CY, radius * 0.4, CX, CY, radius);
   rg.addColorStop(0, "transparent");
-  rg.addColorStop(1, color);
+  rg.addColorStop(0.6, color);
+  rg.addColorStop(1, "transparent");
   ctx.save();
   ctx.globalAlpha = alpha;
   ctx.fillStyle = rg;
+  ctx.globalCompositeOperation = "screen";
   ctx.fillRect(0, 0, SIZE, SIZE);
   ctx.restore();
 }
@@ -189,163 +196,151 @@ export function drawRarityAura(ctx: CanvasRenderingContext2D, rarity: RarityLeve
 // ─── ELEMENT EFFECTS ──────────────────────────────────────────────────────────
 
 export function drawElementEffect(ctx: CanvasRenderingContext2D, element: ElementType): void {
+  ctx.save();
   switch (element) {
     case "fire": {
-      // Red/orange flame particles rising from weapon + ember glow + edge heat
-      // Bottom fire base glow
-      const fg = ctx.createRadialGradient(CX, SIZE - 10, 0, CX, SIZE - 10, 40);
-      fg.addColorStop(0, "rgba(255,100,0,0.45)");
+      // Atmospheric fire effect with deeper color depth and multi-layered glow
+      ctx.globalCompositeOperation = "screen";
+      const fg = ctx.createRadialGradient(CX, SIZE - 10, 10, CX, SIZE - 5, 50);
+      fg.addColorStop(0, "rgba(255,80,0,0.5)");
+      fg.addColorStop(0.6, "rgba(180,40,0,0.2)");
       fg.addColorStop(1, "transparent");
-      ctx.save(); ctx.fillStyle = fg; ctx.fillRect(0, 0, SIZE, SIZE); ctx.restore();
+      ctx.fillStyle = fg; ctx.fillRect(0, 0, SIZE, SIZE);
 
-      // Flame wisps rising (bezier flame shapes)
       const flames: [number, number, number][] = [
-        [CX - 18, 90, 22], [CX - 6, 75, 30], [CX + 4, 80, 26], [CX + 16, 88, 20],
-        [CX - 28, 98, 16], [CX + 26, 96, 14]
+        [CX - 18, 90, 24], [CX - 6, 75, 32], [CX + 4, 80, 28], [CX + 16, 88, 22],
+        [CX - 28, 98, 18], [CX + 26, 96, 16]
       ];
-      ctx.save();
       for (const [fx, fy, fh] of flames) {
         const lg = ctx.createLinearGradient(fx, fy, fx, fy - fh);
-        lg.addColorStop(0, "rgba(255,60,0,0.85)");
-        lg.addColorStop(0.5, "rgba(255,150,0,0.7)");
-        lg.addColorStop(1, "rgba(255,240,0,0)");
+        lg.addColorStop(0, "rgba(255,40,0,0.9)");
+        lg.addColorStop(0.4, "rgba(255,120,0,0.7)");
+        lg.addColorStop(1, "rgba(255,200,0,0)");
         ctx.beginPath();
-        ctx.moveTo(fx - 4, fy);
-        ctx.bezierCurveTo(fx - 6, fy - fh * 0.4, fx + 5, fy - fh * 0.7, fx, fy - fh);
-        ctx.bezierCurveTo(fx - 4, fy - fh * 0.7, fx + 6, fy - fh * 0.3, fx + 4, fy);
+        ctx.moveTo(fx - 5, fy);
+        ctx.bezierCurveTo(fx - 8, fy - fh * 0.4, fx + 6, fy - fh * 0.7, fx, fy - fh);
+        ctx.bezierCurveTo(fx - 5, fy - fh * 0.7, fx + 8, fy - fh * 0.3, fx + 5, fy);
         ctx.closePath();
-        ctx.fillStyle = lg; ctx.shadowColor = "#ff4400"; ctx.shadowBlur = 8; ctx.fill();
+        ctx.fillStyle = lg; ctx.shadowColor = "#ff3300"; ctx.shadowBlur = 10; ctx.fill();
       }
-      // Ember sparks
+
       const sparks: [number, number, number][] = [
-        [CX - 22, 68, 2], [CX + 20, 60, 1.5], [CX - 10, 52, 2.5], [CX + 8, 45, 1.8],
-        [CX - 30, 78, 1.5], [CX + 28, 72, 2], [CX + 2, 38, 1.2]
+        [CX - 22, 68, 2.2], [CX + 20, 60, 1.8], [CX - 10, 52, 2.5], [CX + 8, 45, 2],
+        [CX - 30, 78, 1.8], [CX + 28, 72, 2.2], [CX + 2, 38, 1.5]
       ];
-      ctx.fillStyle = "#ffcc00"; ctx.shadowColor = "#ff6600"; ctx.shadowBlur = 6;
+      ctx.fillStyle = "#ffcc00"; ctx.shadowColor = "#ff9900"; ctx.shadowBlur = 8;
       for (const [ex, ey, er] of sparks) {
         ctx.beginPath(); ctx.arc(ex, ey, er, 0, Math.PI * 2); ctx.fill();
       }
-      // Heat distortion overlay at top
-      const hg = ctx.createLinearGradient(0, 0, 0, 40);
-      hg.addColorStop(0, "rgba(255,80,0,0.1)"); hg.addColorStop(1, "transparent");
-      ctx.fillStyle = hg; ctx.fillRect(0, 0, SIZE, SIZE);
-      ctx.restore();
       break;
     }
 
     case "ice": {
-      // Blue frost shard crystals on edges + ice crack lines + snow particles
-      // Frost ambient
-      const ig = ctx.createRadialGradient(CX, CY, 28, CX, CY, 68);
+      // Atmospheric ice effect with frosted overlay and shimmering crystals
+      ctx.globalCompositeOperation = "screen";
+      const ig = ctx.createRadialGradient(CX, CY, 30, CX, CY, 70);
       ig.addColorStop(0, "transparent");
-      ig.addColorStop(1, "rgba(100,200,255,0.28)");
-      ctx.save(); ctx.fillStyle = ig; ctx.fillRect(0, 0, SIZE, SIZE); ctx.restore();
+      ig.addColorStop(0.7, "rgba(100,220,255,0.2)");
+      ig.addColorStop(1, "rgba(160,240,255,0.1)");
+      ctx.fillStyle = ig; ctx.fillRect(0, 0, SIZE, SIZE);
 
-      // Ice crystal shards around the weapon edges
       const shards: [number, number, number, number][] = [
-        [14, 20, -0.4, 14], [12, 55, -0.6, 10], [16, 85, -0.3, 12],
-        [114, 18, 0.4, 13], [116, 60, 0.5, 11], [112, 90, 0.35, 9],
-        [30, 6, -0.8, 10], [64, 8, 0, 8], [100, 9, 0.7, 11],
-        [28, 118, -0.5, 9], [68, 120, 0, 8], [96, 116, 0.6, 10],
+        [14, 20, -0.4, 16], [12, 55, -0.6, 12], [16, 85, -0.3, 14],
+        [114, 18, 0.4, 15], [116, 60, 0.5, 13], [112, 90, 0.35, 11],
+        [30, 6, -0.8, 12], [64, 8, 0, 10], [100, 9, 0.7, 13],
+        [28, 118, -0.5, 11], [68, 120, 0, 10], [96, 116, 0.6, 12],
       ];
-      ctx.save();
       for (const [sx, sy, angle, sh] of shards) {
         ctx.save();
         ctx.translate(sx, sy);
         ctx.rotate(angle);
         const sg = ctx.createLinearGradient(0, 0, 0, -sh);
-        sg.addColorStop(0, "rgba(160,220,255,0.9)");
-        sg.addColorStop(0.6, "rgba(200,240,255,0.7)");
-        sg.addColorStop(1, "rgba(240,255,255,0)");
+        sg.addColorStop(0, "rgba(180,240,255,0.95)");
+        sg.addColorStop(0.5, "rgba(220,250,255,0.8)");
+        sg.addColorStop(1, "transparent");
         ctx.beginPath();
-        ctx.moveTo(-4, 0); ctx.lineTo(0, -sh); ctx.lineTo(4, 0); ctx.lineTo(2, -sh * 0.4); ctx.lineTo(-2, -sh * 0.4);
-        ctx.closePath();
-        ctx.fillStyle = sg; ctx.shadowColor = "#80d4ff"; ctx.shadowBlur = 6; ctx.fill();
+        ctx.moveTo(-5, 0); ctx.lineTo(0, -sh); ctx.lineTo(5, 0); ctx.closePath();
+        ctx.fillStyle = sg; ctx.shadowColor = "#a0e8ff"; ctx.shadowBlur = 8; ctx.fill();
         ctx.restore();
       }
-      // Frost crack lines
-      ctx.strokeStyle = "rgba(160,220,255,0.45)"; ctx.lineWidth = 1;
+
+      ctx.strokeStyle = "rgba(200,240,255,0.5)"; ctx.lineWidth = 1.2;
       const cracks: [number, number, number, number][] = [
         [10, 30, 30, 55], [118, 25, 98, 48], [25, 100, 50, 115],
         [100, 105, 75, 118], [40, 12, 55, 28], [85, 10, 72, 26]
       ];
       for (const [x1, y1, x2, y2] of cracks) {
         ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
-        // branch
         const mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
-        ctx.beginPath(); ctx.moveTo(mx, my); ctx.lineTo(mx + 8, my - 10); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(mx, my); ctx.lineTo(mx + 10, my - 12); ctx.stroke();
       }
-      // Snow particles
-      ctx.fillStyle = "rgba(220,240,255,0.8)"; ctx.shadowColor = "#a0d8ff"; ctx.shadowBlur = 4;
+
+      ctx.fillStyle = "rgba(230,250,255,0.9)"; ctx.shadowColor = "#ffffff"; ctx.shadowBlur = 5;
       const snow = [[20,40],[45,22],[80,16],[108,38],[115,75],[100,102],[55,112],[18,95],[38,110],[90,8],[8,65],[120,58]];
       for (const [sx, sy] of snow) {
-        ctx.beginPath(); ctx.arc(sx, sy, 1.5, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(sx, sy, 1.8, 0, Math.PI * 2); ctx.fill();
       }
-      ctx.restore();
       break;
     }
 
     case "electro": {
-      // Yellow/purple lightning arcs + electric sparks + electric halo
-      // Electric glow ambient
-      const eg = ctx.createRadialGradient(CX, CY, 20, CX, CY, 64);
-      eg.addColorStop(0, "rgba(255,230,0,0.12)");
-      eg.addColorStop(0.5, "rgba(180,100,255,0.08)");
+      // Atmospheric electro effect with energetic lightning and purple/yellow glows
+      ctx.globalCompositeOperation = "screen";
+      const eg = ctx.createRadialGradient(CX, CY, 15, CX, CY, 65);
+      eg.addColorStop(0, "rgba(255,240,0,0.15)");
+      eg.addColorStop(0.6, "rgba(160,80,255,0.1)");
       eg.addColorStop(1, "transparent");
-      ctx.save(); ctx.fillStyle = eg; ctx.fillRect(0, 0, SIZE, SIZE); ctx.restore();
+      ctx.fillStyle = eg; ctx.fillRect(0, 0, SIZE, SIZE);
 
-      // Lightning bolt paths across the canvas
       const bolts: [number, number, number, number, number[]][] = [
         [10, 20, 118, 108, [30, 45, 55, 80, 80, 60, 95, 75]],
         [18, 105, 110, 18, [40, 90, 60, 70, 75, 50, 90, 35]],
         [CX, 5, CX + 20, 123, [CX + 5, 30, CX - 8, 55, CX + 12, 80, CX - 5, 100]],
       ];
-      ctx.save();
-      ctx.lineWidth = 1.5; ctx.lineCap = "round";
+
+      ctx.lineWidth = 1.8; ctx.lineCap = "round";
       for (const [x1, y1, x2, y2, pts] of bolts) {
-        ctx.strokeStyle = "#ffe000"; ctx.shadowColor = "#ffe000"; ctx.shadowBlur = 8;
+        ctx.strokeStyle = "#ffe000"; ctx.shadowColor = "#ffee00"; ctx.shadowBlur = 10;
         ctx.beginPath(); ctx.moveTo(x1, y1);
         for (let i = 0; i < pts.length - 1; i += 2) { ctx.lineTo(pts[i], pts[i + 1]); }
         ctx.lineTo(x2, y2); ctx.stroke();
-        // Second pass — white core
-        ctx.strokeStyle = "rgba(255,255,255,0.8)"; ctx.lineWidth = 0.7; ctx.shadowBlur = 3;
+
+        ctx.strokeStyle = "rgba(255,255,255,0.9)"; ctx.lineWidth = 0.8; ctx.shadowBlur = 4;
         ctx.beginPath(); ctx.moveTo(x1, y1);
         for (let i = 0; i < pts.length - 1; i += 2) { ctx.lineTo(pts[i], pts[i + 1]); }
         ctx.lineTo(x2, y2); ctx.stroke();
-        ctx.lineWidth = 1.5;
+        ctx.lineWidth = 1.8;
       }
-      // Branch sparks
-      ctx.strokeStyle = "#cc88ff"; ctx.lineWidth = 1; ctx.shadowColor = "#aa44ff"; ctx.shadowBlur = 5;
+
+      ctx.strokeStyle = "#cc88ff"; ctx.lineWidth = 1.2; ctx.shadowColor = "#9030d0"; ctx.shadowBlur = 6;
       const branches = [[35,45,22,38],[62,55,75,44],[40,90,28,80],[80,68,92,60],[55,80,42,90]];
       for (const [x1, y1, x2, y2] of branches) {
         ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
       }
-      // Electric spark dots
-      ctx.fillStyle = "#ffff80"; ctx.shadowColor = "#ffee00"; ctx.shadowBlur = 8;
-      const sparks = [[12,22,2.5],[118,18,2],[20,108,2.2],[108,110,2.5],[64,10,2],[64,118,2],[10,64,2],[118,64,2]];
+
+      ctx.fillStyle = "#ffffa0"; ctx.shadowColor = "#ffee00"; ctx.shadowBlur = 8;
+      const sparks = [[12,22,2.8],[118,18,2.2],[20,108,2.5],[108,110,2.8],[64,10,2.2],[64,118,2.2],[10,64,2.2],[118,64,2.2]];
       for (const [sx, sy, sr] of sparks) {
         ctx.beginPath(); ctx.arc(sx, sy, sr, 0, Math.PI * 2); ctx.fill();
       }
-      // Purple energy orbs
-      ctx.fillStyle = "#cc88ff"; ctx.shadowColor = "#9020e0"; ctx.shadowBlur = 10;
+
+      ctx.fillStyle = "#cc88ff"; ctx.shadowColor = "#a335ee"; ctx.shadowBlur = 12;
       for (const [sx, sy] of [[28,28],[100,28],[28,100],[100,100]]) {
-        ctx.beginPath(); ctx.arc(sx, sy, 3.5, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(sx, sy, 4, 0, Math.PI * 2); ctx.fill();
       }
-      ctx.restore();
       break;
     }
 
     case "wind": {
-      // Cyan swirling wisps + vortex spirals + wind streak lines
-      // Wind ambient
-      const wg = ctx.createRadialGradient(CX, CY, 10, CX, CY, 64);
-      wg.addColorStop(0, "rgba(0,200,180,0.08)");
-      wg.addColorStop(1, "rgba(100,220,200,0.06)");
-      ctx.save(); ctx.fillStyle = wg; ctx.fillRect(0, 0, SIZE, SIZE); ctx.restore();
+      // Atmospheric wind effect with ethereal swirls and motion streaks
+      ctx.globalCompositeOperation = "screen";
+      const wg = ctx.createRadialGradient(CX, CY, 15, CX, CY, 65);
+      wg.addColorStop(0, "rgba(0,220,200,0.1)");
+      wg.addColorStop(0.7, "rgba(100,240,220,0.05)");
+      wg.addColorStop(1, "transparent");
+      ctx.fillStyle = wg; ctx.fillRect(0, 0, SIZE, SIZE);
 
-      // Swirl arcs (partial circles)
-      ctx.save();
-      ctx.lineWidth = 1.8; ctx.strokeStyle = "#00e5cc"; ctx.shadowColor = "#00c8b0"; ctx.shadowBlur = 8;
+      ctx.lineWidth = 2; ctx.strokeStyle = "#00f0d0"; ctx.shadowColor = "#00e5cc"; ctx.shadowBlur = 10;
       const swirls: [number, number, number, number, number][] = [
         [CX, CY, 52, 0.1, 1.4],
         [CX - 8, CY + 6, 38, 0.8, 2.2],
@@ -357,12 +352,12 @@ export function drawElementEffect(ctx: CanvasRenderingContext2D, element: Elemen
       for (const [wx, wy, wr, startA, endA] of swirls) {
         ctx.beginPath();
         ctx.arc(wx, wy, wr, startA, endA);
-        ctx.globalAlpha = 0.55;
+        ctx.globalAlpha = 0.6;
         ctx.stroke();
       }
-      // Wind streak lines (horizontal motion blur)
+
       ctx.globalAlpha = 0.5;
-      ctx.lineWidth = 1.2;
+      ctx.lineWidth = 1.5;
       const streaks: [number, number, number, number][] = [
         [0, 18, 35, 22], [0, 32, 28, 36], [90, 24, 128, 20],
         [95, 40, 128, 38], [0, 98, 40, 102], [88, 95, 128, 92],
@@ -372,14 +367,14 @@ export function drawElementEffect(ctx: CanvasRenderingContext2D, element: Elemen
       for (const [x1, y1, x2, y2] of streaks) {
         const sg = ctx.createLinearGradient(x1, y1, x2, y2);
         const toRight = x2 > x1;
-        sg.addColorStop(0, toRight ? "transparent" : "rgba(0,220,190,0.7)");
-        sg.addColorStop(1, toRight ? "rgba(0,220,190,0.7)" : "transparent");
+        sg.addColorStop(0, toRight ? "transparent" : "rgba(100,255,230,0.7)");
+        sg.addColorStop(1, toRight ? "rgba(100,255,230,0.7)" : "transparent");
         ctx.strokeStyle = sg;
         ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
       }
-      // Wind leaf/petal wisps
-      ctx.globalAlpha = 0.65;
-      ctx.fillStyle = "#00e5cc"; ctx.shadowColor = "#00b8a0"; ctx.shadowBlur = 6;
+
+      ctx.globalAlpha = 0.7;
+      ctx.fillStyle = "#00f0d0"; ctx.shadowColor = "#00e5cc"; ctx.shadowBlur = 8;
       const wisps: [number, number, number][] = [
         [15, 15, 0.4], [110, 20, -0.6], [18, 110, 0.8], [112, 105, -0.5],
         [50, 10, 0.2], [80, 118, -0.3], [8, 60, 0.5], [120, 65, -0.4]
@@ -387,10 +382,9 @@ export function drawElementEffect(ctx: CanvasRenderingContext2D, element: Elemen
       for (const [wx, wy, angle] of wisps) {
         ctx.save(); ctx.translate(wx, wy); ctx.rotate(angle);
         ctx.beginPath();
-        ctx.ellipse(0, 0, 5, 2, 0, 0, Math.PI * 2);
+        ctx.ellipse(0, 0, 6, 2.5, 0, 0, Math.PI * 2);
         ctx.fill(); ctx.restore();
       }
-      ctx.restore();
       break;
     }
 
@@ -398,6 +392,7 @@ export function drawElementEffect(ctx: CanvasRenderingContext2D, element: Elemen
     default:
       break;
   }
+  ctx.restore();
 }
 
 // ─── COMPOSITE RENDERER ───────────────────────────────────────────────────────
