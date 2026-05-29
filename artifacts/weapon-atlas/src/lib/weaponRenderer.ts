@@ -10,60 +10,140 @@ export interface WeaponPart {
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
-function outline(ctx: CanvasRenderingContext2D, color = "#0d0d0d", lw = 3, soft = false) {
-function outline(ctx: CanvasRenderingContext2D, color = "#0d0d0d", lw = 3.5) {
+function outline(ctx: CanvasRenderingContext2D, color = "#0d0d0d", lw = 3.5, soft = false) {
   ctx.save();
+  if (soft) {
+    ctx.shadowColor = "rgba(0,0,0,0.6)";
+    ctx.shadowBlur = 4;
+  } else {
+    ctx.shadowColor = "rgba(0,0,0,0.4)";
+    ctx.shadowBlur = 1.5;
+  }
   ctx.strokeStyle = color;
   ctx.lineWidth = lw;
   ctx.lineJoin = "round";
   ctx.lineCap = "round";
-  ctx.shadowColor = "rgba(0,0,0,0.5)";
-  ctx.shadowBlur = 2;
   ctx.stroke();
   ctx.restore();
 }
 
-function rimLight(ctx: CanvasRenderingContext2D, color = "rgba(255,255,255,0.4)", lw = 2.5) {
+function rimLight(ctx: CanvasRenderingContext2D, pathFnOrColor: (() => void) | string = "rgba(255,255,255,0.4)", colorOrWidth: string | number = 2.5, width = 4) {
   ctx.save();
-  ctx.strokeStyle = color;
-  ctx.lineWidth = lw;
+  let finalColor: string;
+  let finalWidth: number;
+  if (typeof pathFnOrColor === "function") {
+    pathFnOrColor();
+    ctx.clip();
+    finalColor = typeof colorOrWidth === "string" ? colorOrWidth : "rgba(255,255,255,0.4)";
+    finalWidth = typeof colorOrWidth === "number" ? colorOrWidth : width;
+    ctx.globalCompositeOperation = "screen";
+  } else {
+    finalColor = typeof pathFnOrColor === "string" ? pathFnOrColor : "rgba(255,255,255,0.4)";
+    finalWidth = typeof colorOrWidth === "number" ? colorOrWidth : 2.5;
+  }
+
+  // Multi-layered light catch
+  ctx.strokeStyle = finalColor;
+  ctx.lineWidth = finalWidth;
   ctx.lineJoin = "round";
   ctx.stroke();
+
+  // Thinner brighter inner rim
+  if (finalWidth > 1.5) {
+    ctx.strokeStyle = "rgba(255,255,255,0.5)";
+    ctx.lineWidth = finalWidth * 0.4;
+    ctx.stroke();
+  }
   ctx.restore();
 }
 
 function addNoise(ctx: CanvasRenderingContext2D, opacity = 0.05) {
   ctx.save();
+  ctx.globalAlpha = opacity;
   ctx.globalCompositeOperation = "overlay";
-  for (let i = 0; i < 500; i++) {
+  for (let i = 0; i < 600; i++) {
     const x = Math.random() * 128;
     const y = Math.random() * 128;
-    ctx.fillStyle = Math.random() > 0.5 ? `rgba(255,255,255,${opacity})` : `rgba(0,0,0,${opacity})`;
-    ctx.fillRect(x, y, 1, 1);
+    const size = Math.random() * 1.2;
+    ctx.fillStyle = Math.random() > 0.5 ? "#fff" : "#000";
+    ctx.fillRect(x, y, size, size);
   }
   ctx.restore();
 }
 
-function addGrit(ctx: CanvasRenderingContext2D, opacity = 0.12) {
+function addGrit(ctx: CanvasRenderingContext2D, pathFnOrOpacity: (() => void) | number = 0.15, opacity = 0.15) {
   ctx.save();
-  for (let i = 0; i < 40; i++) {
+  let finalOpacity: number;
+  if (typeof pathFnOrOpacity === "function") {
+    pathFnOrOpacity();
+    ctx.clip();
+    finalOpacity = opacity;
+  } else {
+    finalOpacity = typeof pathFnOrOpacity === "number" ? pathFnOrOpacity : 0.15;
+  }
+  ctx.globalAlpha = finalOpacity;
+  ctx.globalCompositeOperation = "multiply";
+  for (let i = 0; i < 200; i++) {
     const x = Math.random() * 128;
     const y = Math.random() * 128;
-    const s = 0.5 + Math.random() * 1.5;
-    ctx.fillStyle = `rgba(0,0,0,${opacity})`;
-    ctx.fillRect(x, y, s, s);
+    const r = Math.random() * 1.8 + 0.3;
+    ctx.fillStyle = Math.random() > 0.3 ? "#2a1a0a" : "#000";
+    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
   }
   ctx.restore();
 }
 
-function shine(ctx: CanvasRenderingContext2D, x1: number, y1: number, x2: number, y2: number, alpha = 0.6) {
+function bevel(ctx: CanvasRenderingContext2D, pathFn: () => void, opacity = 0.3) {
+  ctx.save();
+  pathFn();
+  ctx.clip();
+
+  // Top-left highlight
+  ctx.translate(-2, -2);
+  pathFn();
+  ctx.strokeStyle = `rgba(255,255,255,${opacity})`;
+  ctx.lineWidth = 3;
+  ctx.globalCompositeOperation = "screen";
+  ctx.stroke();
+
+  // Bottom-right shadow
+  ctx.translate(4, 4);
+  pathFn();
+  ctx.strokeStyle = `rgba(0,0,0,${opacity * 1.5})`;
+  ctx.lineWidth = 3;
+  ctx.globalCompositeOperation = "multiply";
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+function innerShadow(ctx: CanvasRenderingContext2D, pathFn: () => void, opacity = 0.4, blur = 6) {
+  ctx.save();
+  pathFn();
+  ctx.clip();
+
+  ctx.shadowColor = `rgba(0,0,0,${opacity})`;
+  ctx.shadowBlur = blur;
+  ctx.shadowOffsetX = 2;
+  ctx.shadowOffsetY = 2;
+
+  ctx.globalCompositeOperation = "source-atop";
+  ctx.lineWidth = 4;
+  ctx.strokeStyle = "black";
+  pathFn();
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+function shine(ctx: CanvasRenderingContext2D, x1: number, y1: number, x2: number, y2: number, alpha = 0.6, lw = 2.5) {
   ctx.save();
   const g = ctx.createLinearGradient(x1, y1, x2, y2);
   g.addColorStop(0, `rgba(255,255,255,0)`);
   g.addColorStop(0.5, `rgba(255,255,255,${alpha})`);
   g.addColorStop(1, `rgba(255,255,255,0)`);
   ctx.strokeStyle = g;
-  ctx.lineWidth = 2.5;
+  ctx.lineWidth = lw;
   ctx.lineCap = "round";
   ctx.beginPath();
   ctx.moveTo(x1, y1);
@@ -72,56 +152,15 @@ function shine(ctx: CanvasRenderingContext2D, x1: number, y1: number, x2: number
   ctx.restore();
 }
 
-function rimLight(ctx: CanvasRenderingContext2D, pathFn: () => void, color = "rgba(255,255,255,0.4)", width = 4) {
-  ctx.save();
-  pathFn();
-  ctx.clip();
-  ctx.strokeStyle = color;
-  ctx.lineWidth = width;
-  ctx.globalCompositeOperation = "screen";
-  ctx.stroke();
-  ctx.restore();
-}
-
-function addNoise(ctx: CanvasRenderingContext2D, opacity = 0.05) {
-  ctx.save();
-  ctx.globalAlpha = opacity;
-  ctx.globalCompositeOperation = "overlay";
-  for (let i = 0; i < 400; i++) {
-    const x = Math.random() * 128;
-    const y = Math.random() * 128;
-    ctx.fillStyle = Math.random() > 0.5 ? "#fff" : "#000";
-    ctx.fillRect(x, y, 1, 1);
-  }
-  ctx.restore();
-}
-
-function addGrit(ctx: CanvasRenderingContext2D, pathFn: () => void, opacity = 0.15) {
-  ctx.save();
-  pathFn();
-  ctx.clip();
-  ctx.globalAlpha = opacity;
-  ctx.globalCompositeOperation = "multiply";
-  for (let i = 0; i < 150; i++) {
-    const x = Math.random() * 128;
-    const y = Math.random() * 128;
-    const r = Math.random() * 2 + 0.5;
-    ctx.fillStyle = "#3a2a1a";
-    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
-  }
-  ctx.restore();
-}
-
 function gem(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, c1: string, c2: string) {
   ctx.save();
   // Deep Glow
-  const glow = ctx.createRadialGradient(x, y, 0, x, y, r * 3);
-  glow.addColorStop(0, c1 + "aa");
+  const glow = ctx.createRadialGradient(x, y, 0, x, y, r * 2.5);
+  glow.addColorStop(0, c1 + "99");
   glow.addColorStop(1, "transparent");
   ctx.fillStyle = glow;
   ctx.globalCompositeOperation = "screen";
-  ctx.beginPath(); ctx.arc(x, y, r * 3, 0, Math.PI * 2); ctx.fill();
-  ctx.restore();
+  ctx.beginPath(); ctx.arc(x, y, r * 2.5, 0, Math.PI * 2); ctx.fill();
 
   // Body — hexagonal facet
   ctx.beginPath();
@@ -133,39 +172,51 @@ function gem(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, c1:
     if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
   }
   ctx.closePath();
-  const g = ctx.createRadialGradient(x - r * 0.3, y - r * 0.4, 0, x, y, r * 1.2);
+  const g = ctx.createRadialGradient(x - r * 0.4, y - r * 0.5, 0, x, y, r * 1.3);
   g.addColorStop(0, "#ffffff");
-  g.addColorStop(0.15, c1);
-  g.addColorStop(1, c2);
+  g.addColorStop(0.1, c1);
+  g.addColorStop(0.8, c2);
+  g.addColorStop(1, "#000");
   ctx.fillStyle = g;
   ctx.fill();
-  ctx.strokeStyle = "rgba(0,0,0,0.8)";
-  ctx.lineWidth = 1.8;
+  ctx.strokeStyle = "rgba(0,0,0,0.9)";
+  ctx.lineWidth = 1.5;
   ctx.stroke();
 
-  // Internal facets
+  // Internal facets — cross structure
   ctx.beginPath();
-  ctx.moveTo(x - r * 0.85, y - r * 0.4);
-  ctx.lineTo(x, y - r);
-  ctx.lineTo(x + r * 0.85, y - r * 0.4);
-  ctx.strokeStyle = "rgba(255,255,255,0.5)";
-  ctx.lineWidth = 1.2;
+  for (let i = 0; i < sides; i++) {
+    const angle = (i / sides) * Math.PI * 2 - Math.PI / 2;
+    ctx.moveTo(x, y);
+    ctx.lineTo(x + r * Math.cos(angle), y + r * Math.sin(angle));
+  }
+  ctx.strokeStyle = "rgba(255,255,255,0.3)";
+  ctx.lineWidth = 0.8;
   ctx.stroke();
 
-  // Sparkle
+  // Highlight Sparkle
   ctx.fillStyle = "rgba(255,255,255,0.95)";
-  ctx.beginPath(); ctx.arc(x - r * 0.32, y - r * 0.42, r * 0.25, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(x - r * 0.4, y - r * 0.4);
+  ctx.lineTo(x - r * 0.1, y - r * 0.5);
+  ctx.lineTo(x - r * 0.2, y - r * 0.2);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.restore();
 }
 
 function smallGem(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, c1: string, c2: string) {
   ctx.save();
   ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2);
-  const g = ctx.createRadialGradient(x - r * 0.3, y - r * 0.3, 0, x, y, r);
-  g.addColorStop(0, "#fff"); g.addColorStop(0.3, c1); g.addColorStop(1, c2);
+  const g = ctx.createRadialGradient(x - r * 0.4, y - r * 0.4, 0, x, y, r);
+  g.addColorStop(0, "#fff"); g.addColorStop(0.2, c1); g.addColorStop(0.9, c2); g.addColorStop(1, "#000");
   ctx.fillStyle = g; ctx.fill();
-  ctx.strokeStyle = "rgba(0,0,0,0.7)"; ctx.lineWidth = 1.2; ctx.stroke();
+  ctx.strokeStyle = "rgba(0,0,0,0.8)"; ctx.lineWidth = 1; ctx.stroke();
+
+  // Catch light
   ctx.fillStyle = "rgba(255,255,255,0.9)";
-  ctx.beginPath(); ctx.arc(x - r * 0.3, y - r * 0.3, r * 0.3, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(x - r * 0.35, y - r * 0.35, r * 0.3, 0, Math.PI * 2); ctx.fill();
   ctx.restore();
 }
 
@@ -216,32 +267,49 @@ function drawBlade(
 ) {
   const path = () => bladePath(ctx, cx, top, bottom, bw);
   path();
-  // Left face
-  const lg = ctx.createLinearGradient(cx - bw, 0, cx + 2, 0);
-  lg.addColorStop(0, leftColor); lg.addColorStop(1, centerColor);
-  ctx.fillStyle = lg; ctx.fill();
-  // Right face overlay
-  ctx.save(); ctx.clip();
-  const rg = ctx.createLinearGradient(cx, 0, cx + bw, 0);
-  rg.addColorStop(0, centerColor); rg.addColorStop(1, rightColor);
-  ctx.fillStyle = rg;
-  ctx.beginPath(); ctx.moveTo(cx, top); ctx.lineTo(cx + bw, top + (bottom - top) * 0.18); ctx.lineTo(cx, bottom); ctx.closePath();
-  ctx.fill(); ctx.restore();
 
-  // Painterly Enhancements
+  // Base Gradient with multi-stops for volume
+  const bg = ctx.createLinearGradient(cx - bw, 0, cx + bw, 0);
+  bg.addColorStop(0, leftColor);
+  bg.addColorStop(0.48, centerColor);
+  bg.addColorStop(0.52, centerColor);
+  bg.addColorStop(1, rightColor);
+  ctx.fillStyle = bg;
+  ctx.fill();
+
+  // Highlight face (one side caught by light)
   ctx.save();
-  bladePath(ctx, cx, top, bottom, bw);
   ctx.clip();
-  rimLight(ctx, "rgba(255,255,255,0.25)", 4);
-  addNoise(ctx, 0.04);
+  const hg = ctx.createLinearGradient(cx - bw, top, cx + bw, bottom);
+  hg.addColorStop(0, "rgba(255,255,255,0.15)");
+  hg.addColorStop(0.5, "transparent");
+  ctx.fillStyle = hg;
+  ctx.fillRect(cx - bw, top, bw * 2, bottom - top);
   ctx.restore();
 
-  bladePath(ctx, cx, top, bottom, bw);
+  // 2.5D Depth and Textures
+  bevel(ctx, path, 0.25);
+  innerShadow(ctx, path, 0.3, 4);
+  rimLight(ctx, path, "rgba(255,255,255,0.3)", 3.5);
+  addNoise(ctx, 0.04);
+
+  path();
   outline(ctx, outlineColor, 3.5);
 
-  // Center ridge
-  ctx.beginPath(); ctx.moveTo(cx, top + 4); ctx.lineTo(cx, bottom - 4);
-  ctx.strokeStyle = "rgba(255,255,255,0.55)"; ctx.lineWidth = 1.8; ctx.stroke();
+  // Center ridge - sharp and defined
+  ctx.beginPath();
+  ctx.moveTo(cx, top + 5);
+  ctx.lineTo(cx, bottom - 5);
+  ctx.strokeStyle = "rgba(255,255,255,0.4)";
+  ctx.lineWidth = 1.2;
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.moveTo(cx - 0.5, top + 6);
+  ctx.lineTo(cx - 0.5, bottom - 6);
+  ctx.strokeStyle = "rgba(0,0,0,0.3)";
+  ctx.lineWidth = 0.8;
+  ctx.stroke();
 }
 
 // ─── SWORD BLADES ────────────────────────────────────────────────────────────
@@ -299,36 +367,39 @@ function drawSwordBladeVoid(ctx: CanvasRenderingContext2D) {
 
   voidPath();
   const lg = ctx.createLinearGradient(cx - bw, 0, cx + bw, 0);
-  lg.addColorStop(0, "#0d001a"); lg.addColorStop(0.4, "#4a0a7a"); lg.addColorStop(1, "#8a20c0");
+  lg.addColorStop(0, "#0d001a");
+  lg.addColorStop(0.3, "#4a0a7a");
+  lg.addColorStop(0.7, "#6a1b9a");
+  lg.addColorStop(1, "#2a004a");
   ctx.fillStyle = lg;
-  ctx.shadowColor = "#b060ff"; ctx.shadowBlur = 12;
-  ctx.fill(); ctx.shadowBlur = 0;
+  ctx.fill();
 
-  ctx.save();
-  voidPath(); ctx.clip();
-  rimLight(ctx, "rgba(180,100,255,0.3)", 4);
-  addNoise(ctx, 0.06);
-  ctx.restore();
+  bevel(ctx, voidPath, 0.4);
+  innerShadow(ctx, voidPath, 0.5, 8);
+  rimLight(ctx, voidPath, "rgba(180,100,255,0.45)", 4);
+  addNoise(ctx, 0.08);
 
   voidPath();
   outline(ctx, "#0d0014", 3.5);
 
-  // Purple edge glow on serrations
+  // Purple edge glow on serrations - energetic pulsating look
   ctx.beginPath(); ctx.moveTo(cx + bw, top + 22);
   let y = top + 22;
   while (y < bot) {
     ctx.lineTo(cx + bw - 7, y + 8); ctx.lineTo(cx + bw, y + 16); y += 16;
   }
-  ctx.strokeStyle = "#d080ff"; ctx.lineWidth = 1.8; ctx.stroke();
+  ctx.strokeStyle = "rgba(208, 128, 255, 0.8)";
+  ctx.lineWidth = 2.5;
+  ctx.shadowColor = "#d080ff";
+  ctx.shadowBlur = 8;
+  ctx.stroke();
+  ctx.shadowBlur = 0;
 
-  rune(ctx, cx - 4, bot - 28, 4, "#c87aff");
-  rune(ctx, cx - 4, bot - 52, 4, "#c87aff");
+  rune(ctx, cx - 4, bot - 28, 4.5, "#e1bee7");
+  rune(ctx, cx - 4, bot - 52, 4.5, "#e1bee7");
 
-  // Center ridge
-  ctx.beginPath(); ctx.moveTo(cx, top + 6); ctx.lineTo(cx, bot - 4);
-  ctx.strokeStyle = "rgba(200,130,255,0.4)"; ctx.lineWidth = 1.5; ctx.stroke();
-
-  glow(ctx, cx, bot - 40, 25, "rgba(100,20,200,0.15)");
+  // Pulsing energy core
+  glow(ctx, cx, bot - 40, 30, "rgba(140, 40, 255, 0.2)");
 }
 
 function drawSwordBladeRoyal(ctx: CanvasRenderingContext2D) {
@@ -344,36 +415,47 @@ function drawSwordBladeRoyal(ctx: CanvasRenderingContext2D) {
 
   leafPath();
   const lg = ctx.createLinearGradient(cx - 20, 0, cx + 20, 0);
-  lg.addColorStop(0, "#6b4e00"); lg.addColorStop(0.3, "#f9c84a"); lg.addColorStop(0.5, "#fffde0"); lg.addColorStop(0.7, "#e8a800"); lg.addColorStop(1, "#503000");
+  lg.addColorStop(0, "#4e3400");
+  lg.addColorStop(0.2, "#a67c00");
+  lg.addColorStop(0.4, "#fbc02d");
+  lg.addColorStop(0.5, "#fffde0");
+  lg.addColorStop(0.6, "#fbc02d");
+  lg.addColorStop(0.8, "#827717");
+  lg.addColorStop(1, "#3e2723");
   ctx.fillStyle = lg; ctx.fill();
 
-  ctx.save();
-  leafPath(); ctx.clip();
-  rimLight(ctx, "rgba(255,255,255,0.3)", 5);
+  bevel(ctx, leafPath, 0.3);
+  innerShadow(ctx, leafPath, 0.35, 6);
+  rimLight(ctx, leafPath, "rgba(255,255,255,0.45)", 4.5);
   addNoise(ctx, 0.03);
-  ctx.restore();
 
   leafPath();
   outline(ctx, "#1a0a00", 3.5);
 
-  // Royal blue center stripe
-  ctx.beginPath(); ctx.moveTo(cx, top + 14); ctx.lineTo(cx, bot - 2);
-  ctx.strokeStyle = "#1a50c0"; ctx.lineWidth = 6; ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(cx, top + 14); ctx.lineTo(cx, bot - 2);
-  ctx.strokeStyle = "rgba(100,200,255,0.4)"; ctx.lineWidth = 1.5; ctx.stroke();
+  // Royal blue center stripe - enameled look
+  ctx.save();
+  ctx.beginPath(); ctx.moveTo(cx, top + 15); ctx.lineTo(cx, bot - 5);
+  ctx.strokeStyle = "#0d47a1";
+  ctx.lineWidth = 7;
+  ctx.lineCap = "round";
+  ctx.stroke();
+
+  ctx.strokeStyle = "rgba(100,200,255,0.4)";
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  ctx.restore();
 
   // Fleur diamond marks on stripe
   for (const dy of [bot - 30, bot - 55, bot - 80]) {
-    smallGem(ctx, cx, dy, 4.5, "#4aa0ff", "#0a2080");
+    smallGem(ctx, cx, dy, 5, "#4aa0ff", "#01213f");
   }
-  shine(ctx, cx - 18, top + 22, cx - 12, bot - 12, 0.5);
-  addGrit(ctx, 0.05);
+
+  shine(ctx, cx - 15, top + 25, cx - 10, bot - 20, 0.4);
+  addGrit(ctx, leafPath, 0.08);
 }
 
 function drawSwordBladeCursed(ctx: CanvasRenderingContext2D) {
   const cx = 64, top = 8, bot = 110, bw = 12;
-  const path = () => {
-    ctx.beginPath(); ctx.moveTo(cx, top);
 
   const cursedPath = () => {
     ctx.beginPath(); ctx.moveTo(cx, top);
@@ -392,37 +474,39 @@ function drawSwordBladeCursed(ctx: CanvasRenderingContext2D) {
 
   cursedPath();
   const lg = ctx.createLinearGradient(cx - bw, 0, cx + bw, 0);
-  lg.addColorStop(0, "#220000"); lg.addColorStop(0.3, "#8b0000"); lg.addColorStop(0.7, "#cc2200"); lg.addColorStop(1, "#ff5500");
+  lg.addColorStop(0, "#220000");
+  lg.addColorStop(0.3, "#8b0000");
+  lg.addColorStop(0.7, "#cc2200");
+  lg.addColorStop(1, "#ff5500");
   ctx.fillStyle = lg;
-  ctx.shadowColor = "#ff3300"; ctx.shadowBlur = 15;
-  ctx.fill(); ctx.shadowBlur = 0;
+  ctx.fill();
 
-  ctx.save();
-  cursedPath(); ctx.clip();
-  rimLight(ctx, "rgba(255,150,0,0.3)", 4);
+  bevel(ctx, cursedPath, 0.4);
+  innerShadow(ctx, cursedPath, 0.5, 10);
+  rimLight(ctx, cursedPath, "rgba(255,150,0,0.4)", 4);
   addNoise(ctx, 0.07);
-  ctx.restore();
 
   cursedPath();
   outline(ctx, "#0d0000", 3.5);
 
-  // Ember dots along flame edge
+  // Ember dots along flame edge - glowing embers
   for (let ey = bot - 8; ey > top + 28; ey -= 16) {
     ctx.beginPath(); ctx.arc(cx - bw + 6, ey, 2.5, 0, Math.PI * 2);
     ctx.fillStyle = "#ffaa00";
-    ctx.shadowColor = "#ffaa00"; ctx.shadowBlur = 4;
+    ctx.shadowColor = "#ffaa00"; ctx.shadowBlur = 6;
     ctx.fill(); ctx.shadowBlur = 0;
   }
 
-  // Crack lines on blade face
-  ctx.strokeStyle = "rgba(255,80,0,0.6)"; ctx.lineWidth = 1.2;
+  // Crack lines on blade face - glowing hot
+  ctx.save();
+  ctx.strokeStyle = "rgba(255, 120, 0, 0.8)";
+  ctx.lineWidth = 1.5;
+  ctx.shadowColor = "#ff5500";
+  ctx.shadowBlur = 4;
   ctx.beginPath(); ctx.moveTo(cx + 2, top + 30); ctx.lineTo(cx + 8, top + 55); ctx.lineTo(cx + 4, top + 70); ctx.stroke();
+  ctx.restore();
 
-  // Center ridge
-  ctx.beginPath(); ctx.moveTo(cx, top + 6); ctx.lineTo(cx, bot - 4);
-  ctx.strokeStyle = "rgba(255,120,30,0.5)"; ctx.lineWidth = 1.8; ctx.stroke();
-
-  glow(ctx, cx, 64, 30, "rgba(255,50,0,0.15)");
+  glow(ctx, cx, 64, 40, "rgba(255, 50, 0, 0.2)");
 }
 
 // ─── NEW BLADES ───────────────────────────────────────────────────────────────
@@ -538,17 +622,21 @@ function drawGuardOrnateGold(ctx: CanvasRenderingContext2D) {
   // Left wing
   wing();
   ctx.fillStyle = lg; ctx.fill();
+  bevel(ctx, wing, 0.3);
+  innerShadow(ctx, wing, 0.4, 6);
+  rimLight(ctx, wing, "rgba(255,255,255,0.45)", 4);
   addNoise(ctx, 0.04);
   outline(ctx, "#263238", 3, true);
-  rimLight(ctx, wing, "rgba(255,255,255,0.4)", 4);
 
   // Right wing (mirror)
   ctx.save(); ctx.translate(cx * 2, 0); ctx.scale(-1, 1);
   wing();
   ctx.fillStyle = lg; ctx.fill();
+  bevel(ctx, wing, 0.3);
+  innerShadow(ctx, wing, 0.4, 6);
+  rimLight(ctx, wing, "rgba(255,255,255,0.45)", 4);
   addNoise(ctx, 0.04);
   outline(ctx, "#263238", 3, true);
-  rimLight(ctx, wing, "rgba(255,255,255,0.4)", 4);
   ctx.restore();
 
   // Center collar
@@ -556,7 +644,9 @@ function drawGuardOrnateGold(ctx: CanvasRenderingContext2D) {
   collar();
   const cg = ctx.createRadialGradient(cx - 3, cy - 4, 0, cx, cy, 11);
   cg.addColorStop(0, "#fff59d"); cg.addColorStop(1, "#827717");
-  ctx.fillStyle = cg; ctx.fill(); outline(ctx, "#263238", 2.5, true);
+  ctx.fillStyle = cg; ctx.fill();
+  bevel(ctx, collar, 0.4);
+  outline(ctx, "#263238", 2.5, true);
   gem(ctx, cx, cy, 7.5, "#039be5", "#01213f");
 
   shine(ctx, cx - 48, cy - 15, cx - 25, cy - 28, 0.6, 2.5);
@@ -723,14 +813,17 @@ function drawHandleLeather(ctx: CanvasRenderingContext2D) {
   // Grip base
   ctx.beginPath(); path();
   const lg = ctx.createLinearGradient(cx - hw, 0, cx + hw, 0);
-  lg.addColorStop(0, "#2d1b0d"); lg.addColorStop(0.5, "#5d4037"); lg.addColorStop(1, "#2d1b0d");
+  lg.addColorStop(0, "#2d1b0d");
+  lg.addColorStop(0.5, "#5d4037");
+  lg.addColorStop(1, "#2d1b0d");
   ctx.fillStyle = lg; ctx.fill();
 
+  innerShadow(ctx, path, 0.4, 4);
   addGrit(ctx, path, 0.2);
   outline(ctx, "#1a0800", 3, true);
   rimLight(ctx, path, "rgba(255,255,255,0.15)", 4);
 
-  // Leather wrapping diagonal strips
+  // Leather wrapping diagonal strips - enhanced volume
   ctx.save(); path(); ctx.clip();
   const stripW = 12;
   for (let sy = top - 10; sy < bot + 10; sy += stripW) {
@@ -740,20 +833,27 @@ function drawHandleLeather(ctx: CanvasRenderingContext2D) {
     ctx.lineTo(cx + hw, sy + 6 + 5);
     ctx.lineTo(cx - hw, sy + 5);
     ctx.closePath();
-    ctx.fillStyle = "rgba(0,0,0,0.4)";
+    ctx.fillStyle = "rgba(0,0,0,0.45)";
     ctx.fill();
-    ctx.strokeStyle = "rgba(255,255,255,0.05)"; ctx.lineWidth = 0.5; ctx.stroke();
+    // Stitching/Highlight
+    ctx.strokeStyle = "rgba(255,255,255,0.1)";
+    ctx.lineWidth = 0.8;
+    ctx.stroke();
   }
   ctx.restore();
 
-  // Ferrule rings
+  // Ferrule rings - metallic depth
   for (const ry of [top, top + 8, bot - 8, bot]) {
     const ring = () => { ctx.beginPath(); ctx.roundRect(cx - hw - 1, ry - 3, hw * 2 + 2, 6, 1.5); };
     ring();
     const rg = ctx.createLinearGradient(0, ry - 3, 0, ry + 3);
-    rg.addColorStop(0, "#90a4ae"); rg.addColorStop(0.5, "#eceff1"); rg.addColorStop(1, "#455a64");
-    ctx.fillStyle = rg; ctx.fill(); outline(ctx, "#111", 1.8, true);
-    rimLight(ctx, ring, "rgba(255,255,255,0.3)", 2);
+    rg.addColorStop(0, "#90a4ae");
+    rg.addColorStop(0.4, "#eceff1");
+    rg.addColorStop(1, "#37474f");
+    ctx.fillStyle = rg; ctx.fill();
+    bevel(ctx, ring, 0.3);
+    outline(ctx, "#111", 1.8, true);
+    rimLight(ctx, ring, "rgba(255,255,255,0.35)", 2.5);
   }
 }
 

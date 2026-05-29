@@ -159,11 +159,18 @@ export function drawElementEffect(ctx: CanvasRenderingContext2D, element: Elemen
     case "fire": {
       // Atmospheric fire effect with deeper color depth and multi-layered glow
       ctx.globalCompositeOperation = "screen";
-      const fg = ctx.createRadialGradient(CX, SIZE - 10, 10, CX, SIZE - 5, 50);
-      fg.addColorStop(0, "rgba(255,80,0,0.5)");
-      fg.addColorStop(0.6, "rgba(180,40,0,0.2)");
-      fg.addColorStop(1, "transparent");
-      ctx.fillStyle = fg; ctx.fillRect(0, 0, SIZE, SIZE);
+
+      // Multi-layered heat glow
+      const fg1 = ctx.createRadialGradient(CX, SIZE - 5, 5, CX, SIZE - 10, 60);
+      fg1.addColorStop(0, "rgba(255,100,0,0.6)");
+      fg1.addColorStop(0.6, "rgba(200,40,0,0.2)");
+      fg1.addColorStop(1, "transparent");
+      ctx.fillStyle = fg1; ctx.fillRect(0, 0, SIZE, SIZE);
+
+      const fg2 = ctx.createRadialGradient(CX, CY, 10, CX, CY, 50);
+      fg2.addColorStop(0, "rgba(255,180,0,0.15)");
+      fg2.addColorStop(1, "transparent");
+      ctx.fillStyle = fg2; ctx.fillRect(0, 0, SIZE, SIZE);
 
       const flames: [number, number, number][] = [
         [CX - 18, 90, 24], [CX - 6, 75, 32], [CX + 4, 80, 28], [CX + 16, 88, 22],
@@ -172,21 +179,27 @@ export function drawElementEffect(ctx: CanvasRenderingContext2D, element: Elemen
       for (const [fx, fy, fh] of flames) {
         const lg = ctx.createLinearGradient(fx, fy, fx, fy - fh);
         lg.addColorStop(0, "rgba(255,40,0,0.9)");
-        lg.addColorStop(0.4, "rgba(255,120,0,0.7)");
-        lg.addColorStop(1, "rgba(255,200,0,0)");
+        lg.addColorStop(0.3, "rgba(255,150,0,0.8)");
+        lg.addColorStop(0.7, "rgba(255,220,50,0.4)");
+        lg.addColorStop(1, "transparent");
         ctx.beginPath();
         ctx.moveTo(fx - 5, fy);
         ctx.bezierCurveTo(fx - 8, fy - fh * 0.4, fx + 6, fy - fh * 0.7, fx, fy - fh);
         ctx.bezierCurveTo(fx - 5, fy - fh * 0.7, fx + 8, fy - fh * 0.3, fx + 5, fy);
         ctx.closePath();
-        ctx.fillStyle = lg; ctx.shadowColor = "#ff3300"; ctx.shadowBlur = 10; ctx.fill();
+        ctx.fillStyle = lg;
+        ctx.shadowColor = "#ff4400";
+        ctx.shadowBlur = 12;
+        ctx.fill();
       }
 
       const sparks: [number, number, number][] = [
         [CX - 22, 68, 2.2], [CX + 20, 60, 1.8], [CX - 10, 52, 2.5], [CX + 8, 45, 2],
         [CX - 30, 78, 1.8], [CX + 28, 72, 2.2], [CX + 2, 38, 1.5]
       ];
-      ctx.fillStyle = "#ffcc00"; ctx.shadowColor = "#ff9900"; ctx.shadowBlur = 8;
+      ctx.fillStyle = "#fff59d";
+      ctx.shadowColor = "#ffcc00";
+      ctx.shadowBlur = 8;
       for (const [ex, ey, er] of sparks) {
         ctx.beginPath(); ctx.arc(ex, ey, er, 0, Math.PI * 2); ctx.fill();
       }
@@ -197,8 +210,8 @@ export function drawElementEffect(ctx: CanvasRenderingContext2D, element: Elemen
       // Atmospheric ice effect with frosted overlay and shimmering crystals
       ctx.globalCompositeOperation = "screen";
       const ig = ctx.createRadialGradient(CX, CY, 30, CX, CY, 70);
-      ig.addColorStop(0, "transparent");
-      ig.addColorStop(0.7, "rgba(100,220,255,0.2)");
+      ig.addColorStop(0, "rgba(100,220,255,0.05)");
+      ig.addColorStop(0.7, "rgba(100,220,255,0.25)");
       ig.addColorStop(1, "rgba(160,240,255,0.1)");
       ctx.fillStyle = ig; ctx.fillRect(0, 0, SIZE, SIZE);
 
@@ -211,16 +224,19 @@ export function drawElementEffect(ctx: CanvasRenderingContext2D, element: Elemen
       for (const [sx, sy, angle, sh] of shards) {
         ctx.save(); ctx.translate(sx, sy); ctx.rotate(angle);
         const sg = ctx.createLinearGradient(0, 0, 0, -sh);
-        sg.addColorStop(0, "rgba(180,240,255,0.95)");
-        sg.addColorStop(0.5, "rgba(220,250,255,0.8)");
+        sg.addColorStop(0, "rgba(200,250,255,0.95)");
+        sg.addColorStop(0.5, "rgba(100,200,255,0.7)");
         sg.addColorStop(1, "transparent");
         ctx.beginPath();
         ctx.moveTo(-5, 0); ctx.lineTo(0, -sh); ctx.lineTo(5, 0); ctx.closePath();
-        ctx.fillStyle = sg; ctx.shadowColor = "#a0e8ff"; ctx.shadowBlur = 8; ctx.fill();
+        ctx.fillStyle = sg;
+        ctx.shadowColor = "#60d0ff";
+        ctx.shadowBlur = 10;
+        ctx.fill();
         ctx.restore();
       }
 
-      ctx.strokeStyle = "rgba(200,240,255,0.5)"; ctx.lineWidth = 1.2;
+      ctx.strokeStyle = "rgba(200,240,255,0.6)"; ctx.lineWidth = 1.5;
       const cracks: [number, number, number, number][] = [
         [8, 25, 35, 60], [120, 20, 95, 55], [20, 105, 55, 120],
         [105, 110, 80, 125], [35, 8, 58, 32], [90, 6, 75, 28]
@@ -231,10 +247,13 @@ export function drawElementEffect(ctx: CanvasRenderingContext2D, element: Elemen
         ctx.beginPath(); ctx.moveTo(mx, my); ctx.lineTo(mx + 10, my - 12); ctx.stroke();
       }
 
-      ctx.fillStyle = "rgba(230,250,255,0.9)"; ctx.shadowColor = "#ffffff"; ctx.shadowBlur = 5;
+      // Frosted shimmer particles
+      ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
+      ctx.shadowColor = "#fff";
+      ctx.shadowBlur = 5;
       const snow = [[20,40],[45,22],[80,16],[108,38],[115,75],[100,102],[55,112],[18,95],[38,110],[90,8],[8,65],[120,58]];
       for (const [sx, sy] of snow) {
-        ctx.beginPath(); ctx.arc(sx, sy, 1.8, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(sx, sy, 1.5, 0, Math.PI * 2); ctx.fill();
       }
       break;
     }
@@ -243,8 +262,8 @@ export function drawElementEffect(ctx: CanvasRenderingContext2D, element: Elemen
       // Atmospheric electro effect with energetic lightning and purple/yellow glows
       ctx.globalCompositeOperation = "screen";
       const eg = ctx.createRadialGradient(CX, CY, 15, CX, CY, 65);
-      eg.addColorStop(0, "rgba(255,240,0,0.15)");
-      eg.addColorStop(0.6, "rgba(160,80,255,0.1)");
+      eg.addColorStop(0, "rgba(255,255,100,0.2)");
+      eg.addColorStop(0.5, "rgba(160,80,255,0.15)");
       eg.addColorStop(1, "transparent");
       ctx.fillStyle = eg; ctx.fillRect(0, 0, SIZE, SIZE);
 
@@ -254,35 +273,48 @@ export function drawElementEffect(ctx: CanvasRenderingContext2D, element: Elemen
         [CX, 2, CX + 25, 126, [CX + 8, 35, CX - 10, 60, CX + 15, 85, CX - 8, 105]],
       ];
 
-      ctx.lineWidth = 1.8; ctx.lineCap = "round";
+      ctx.lineCap = "round";
       for (const [x1, y1, x2, y2, pts] of bolts) {
-        ctx.strokeStyle = "#ffe000"; ctx.shadowColor = "#ffee00"; ctx.shadowBlur = 10;
+        // Outer core
+        ctx.strokeStyle = "rgba(255, 224, 0, 0.8)";
+        ctx.shadowColor = "#ffee00";
+        ctx.shadowBlur = 12;
+        ctx.lineWidth = 2.2;
         ctx.beginPath(); ctx.moveTo(x1, y1);
         for (let i = 0; i < pts.length - 1; i += 2) { ctx.lineTo(pts[i], pts[i + 1]); }
         ctx.lineTo(x2, y2); ctx.stroke();
 
-        ctx.strokeStyle = "rgba(255,255,255,0.9)"; ctx.lineWidth = 0.8; ctx.shadowBlur = 4;
+        // Inner hot core
+        ctx.strokeStyle = "#fff";
+        ctx.lineWidth = 0.8;
+        ctx.shadowBlur = 4;
         ctx.beginPath(); ctx.moveTo(x1, y1);
         for (let i = 0; i < pts.length - 1; i += 2) { ctx.lineTo(pts[i], pts[i + 1]); }
         ctx.lineTo(x2, y2); ctx.stroke();
-        ctx.lineWidth = 1.8;
       }
 
-      ctx.strokeStyle = "#cc88ff"; ctx.lineWidth = 1.2; ctx.shadowColor = "#9030d0"; ctx.shadowBlur = 6;
+      ctx.strokeStyle = "rgba(204, 136, 255, 0.7)";
+      ctx.lineWidth = 1.4;
+      ctx.shadowColor = "#9030d0";
+      ctx.shadowBlur = 8;
       const branches = [[35,45,22,38],[62,55,75,44],[40,90,28,80],[80,68,92,60],[55,80,42,90]];
       for (const [x1, y1, x2, y2] of branches) {
         ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
       }
 
-      ctx.fillStyle = "#ffffa0"; ctx.shadowColor = "#ffee00"; ctx.shadowBlur = 8;
-      const sparks = [[12,22,2.8],[118,18,2.2],[20,108,2.5],[108,110,2.8],[64,10,2.2],[64,118,2.2],[10,64,2.2],[118,64,2.2]];
+      ctx.fillStyle = "#fff";
+      ctx.shadowColor = "#ffee00";
+      ctx.shadowBlur = 10;
+      const sparks = [[12,22,2.5],[118,18,2],[20,108,2.2],[108,110,2.5],[64,10,2],[64,118,2],[10,64,2],[118,64,2]];
       for (const [sx, sy, sr] of sparks) {
         ctx.beginPath(); ctx.arc(sx, sy, sr, 0, Math.PI * 2); ctx.fill();
       }
 
-      ctx.fillStyle = "#cc88ff"; ctx.shadowColor = "#a335ee"; ctx.shadowBlur = 12;
+      ctx.fillStyle = "rgba(204, 136, 255, 0.9)";
+      ctx.shadowColor = "#a335ee";
+      ctx.shadowBlur = 15;
       for (const [sx, sy] of [[28,28],[100,28],[28,100],[100,100]]) {
-        ctx.beginPath(); ctx.arc(sx, sy, 4, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(sx, sy, 4.5, 0, Math.PI * 2); ctx.fill();
       }
       break;
     }
@@ -290,25 +322,26 @@ export function drawElementEffect(ctx: CanvasRenderingContext2D, element: Elemen
     case "wind": {
       // Atmospheric wind effect with ethereal swirls and motion streaks
       ctx.globalCompositeOperation = "screen";
-      const wg = ctx.createRadialGradient(CX, CY, 15, CX, CY, 65);
-      wg.addColorStop(0, "rgba(0,220,200,0.1)");
+      const wg = ctx.createRadialGradient(CX, CY, 10, CX, CY, 65);
+      wg.addColorStop(0, "rgba(0,255,200,0.15)");
       wg.addColorStop(0.7, "rgba(100,240,220,0.05)");
       wg.addColorStop(1, "transparent");
       ctx.fillStyle = wg; ctx.fillRect(0, 0, SIZE, SIZE);
 
-      ctx.lineWidth = 2; ctx.strokeStyle = "#00f0d0"; ctx.shadowColor = "#00e5cc"; ctx.shadowBlur = 10;
-      const swirls: [number, number, number, number, number][] = [
-        [CX, CY, 54, 0, 1.5], [CX - 10, CY + 8, 40, 0.7, 2.4], [CX + 12, CY - 10, 46, 3.4, 5.4],
-        [CX, CY, 30, 1.8, 4.0], [CX + 5, CY + 5, 62, -0.4, 1.0], [CX - 8, CY - 8, 22, 1.1, 3.0],
+      ctx.strokeStyle = "rgba(0, 240, 208, 0.6)";
+      ctx.shadowColor = "#00e5cc";
+      ctx.shadowBlur = 12;
+      const swirls: [number, number, number, number, number, number][] = [
+        [CX, CY, 54, 0, 1.5, 2.5], [CX - 10, CY + 8, 40, 0.7, 2.4, 2], [CX + 12, CY - 10, 46, 3.4, 5.4, 1.8],
+        [CX, CY, 30, 1.8, 4.0, 2.2], [CX + 5, CY + 5, 62, -0.4, 1.0, 1.5], [CX - 8, CY - 8, 22, 1.1, 3.0, 2],
       ];
-      for (const [wx, wy, wr, startA, endA] of swirls) {
+      for (const [wx, wy, wr, startA, endA, lw] of swirls) {
+        ctx.lineWidth = lw;
         ctx.beginPath();
         ctx.arc(wx, wy, wr, startA, endA);
-        ctx.globalAlpha = 0.6;
         ctx.stroke();
       }
 
-      ctx.globalAlpha = 0.5;
       ctx.lineWidth = 1.5;
       const streaks: [number, number, number, number][] = [
         [0, 15, 40, 20], [0, 30, 32, 35], [85, 22, 128, 18], [90, 42, 128, 40],
@@ -318,14 +351,15 @@ export function drawElementEffect(ctx: CanvasRenderingContext2D, element: Elemen
       for (const [x1, y1, x2, y2] of streaks) {
         const sg = ctx.createLinearGradient(x1, y1, x2, y2);
         const toRight = x2 > x1;
-        sg.addColorStop(0, toRight ? "transparent" : "rgba(100,255,230,0.7)");
-        sg.addColorStop(1, toRight ? "rgba(100,255,230,0.7)" : "transparent");
+        sg.addColorStop(0, toRight ? "transparent" : "rgba(150,255,240,0.6)");
+        sg.addColorStop(1, toRight ? "rgba(150,255,240,0.6)" : "transparent");
         ctx.strokeStyle = sg;
         ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
       }
 
-      ctx.globalAlpha = 0.7;
-      ctx.fillStyle = "#00f0d0"; ctx.shadowColor = "#00e5cc"; ctx.shadowBlur = 8;
+      ctx.fillStyle = "rgba(0, 240, 208, 0.8)";
+      ctx.shadowColor = "#00e5cc";
+      ctx.shadowBlur = 10;
       const wisps: [number, number, number][] = [
         [12, 12, 0.5], [115, 18, -0.7], [20, 115, 0.9], [115, 110, -0.6],
         [55, 8, 0.3], [85, 120, -0.4], [5, 65, 0.6], [123, 70, -0.5]
@@ -333,7 +367,7 @@ export function drawElementEffect(ctx: CanvasRenderingContext2D, element: Elemen
       for (const [wx, wy, angle] of wisps) {
         ctx.save(); ctx.translate(wx, wy); ctx.rotate(angle);
         ctx.beginPath();
-        ctx.ellipse(0, 0, 6, 2.5, 0, 0, Math.PI * 2);
+        ctx.ellipse(0, 0, 7, 2.8, 0, 0, Math.PI * 2);
         ctx.fill(); ctx.restore();
       }
       break;
