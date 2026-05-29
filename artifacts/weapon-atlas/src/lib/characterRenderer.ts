@@ -197,12 +197,28 @@ function shade(c: string, amt: number): string {
 // 4-tone shading palette for a base color
 function palette(c: string) {
   return {
-    hi:  shade(c,  42),   // specular highlight
-    l:   shade(c,  22),   // lit surface
+    hi:  shade(c,  52),   // specular highlight
+    l:   shade(c,  28),   // lit surface
     b:   c,               // base mid-tone
-    d:   shade(c, -26),   // shadow
-    vd:  shade(c, -48),   // deep shadow / outline
+    d:   shade(c, -32),   // shadow
+    vd:  shade(c, -58),   // deep shadow / outline
   };
+}
+
+function rimLightPx(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, color = "rgba(255,255,255,0.25)") {
+  ctx.save();
+  ctx.globalCompositeOperation = "screen";
+  ctx.fillStyle = color;
+  ctx.fillRect(x|0, y|0, w|0, h|0);
+  ctx.restore();
+}
+
+function innerShadowPx(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, color = "rgba(0,0,0,0.2)") {
+  ctx.save();
+  ctx.globalCompositeOperation = "multiply";
+  ctx.fillStyle = color;
+  ctx.fillRect(x|0, y|0, w|0, h|0);
+  ctx.restore();
 }
 
 // Dithered row: alternates between two colors (checkerboard, 1px row)
@@ -271,13 +287,11 @@ export function drawHead(ctx: CanvasRenderingContext2D, cx: number, cy: number, 
 
     // Left cheek highlight band (top-left lit)
     if (t > 0.25 && t < 0.60) {
-      ctx.fillStyle = pal.l;
-      ctx.fillRect(px_, py_, Math.max(2, Math.round(pw_ * 0.28)), 1);
+      rimLightPx(ctx, px_, py_, Math.max(2, Math.round(pw_ * 0.3)), 1, "rgba(255,255,255,0.2)");
     }
     // Right cheek shadow band
     if (t > 0.30 && t < 0.72) {
-      ctx.fillStyle = pal.d;
-      ctx.fillRect(px_ + pw_ - Math.max(2, Math.round(pw_ * 0.22)), py_, Math.max(2, Math.round(pw_ * 0.22)), 1);
+      innerShadowPx(ctx, px_ + pw_ - Math.max(2, Math.round(pw_ * 0.25)), py_, Math.max(2, Math.round(pw_ * 0.25)), 1, "rgba(0,0,0,0.25)");
     }
 
     // Outer outline pixels at left and right edges of each row
@@ -673,13 +687,11 @@ export function drawTorsoArmor(
 
     // Right-side shadow strip
     if (row >= 4 && row < totalRows - 1) {
-      ctx.fillStyle = pal.d;
-      ctx.fillRect(rx_ + rw_ - 2, ry_, 2, 1);
+      innerShadowPx(ctx, rx_ + rw_ - 2, ry_, 2, 1, "rgba(0,0,0,0.3)");
     }
     // Left-side highlight strip
     if (row >= 4 && row < totalRows - 2 && row !== totalRows - 3) {
-      ctx.fillStyle = pal.l;
-      ctx.fillRect(rx_, ry_, 2, 1);
+      rimLightPx(ctx, rx_, ry_, 2, 1, "rgba(255,255,255,0.25)");
     }
 
     // Pauldron top outline
