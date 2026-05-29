@@ -204,9 +204,26 @@ function drawBlade(
 // ─── SWORD BLADES ────────────────────────────────────────────────────────────
 
 function drawSwordBladeIron(ctx: CanvasRenderingContext2D) {
-  drawBlade(ctx, 64, 8, 108, 13, "#4a4a4a", "#b0b0b0", "#333333");
-  shine(ctx, 55, 22, 55, 95, 0.4);
-  addGrit(ctx, 0.1);
+  const cx = 64, top = 8, bot = 108, bw = 13;
+  drawBlade(ctx, cx, top, bot, bw, "#3a3a3a", "#c0c0c0", "#232323");
+
+  // Deep blood groove (fuller) — offset left for visual depth
+  ctx.beginPath(); ctx.moveTo(cx - 2, top + 26); ctx.lineTo(cx - 2, bot - 10);
+  ctx.strokeStyle = "rgba(0,0,0,0.45)"; ctx.lineWidth = 3; ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(cx - 1, top + 26); ctx.lineTo(cx - 1, bot - 10);
+  ctx.strokeStyle = "rgba(255,255,255,0.22)"; ctx.lineWidth = 1; ctx.stroke();
+
+  // Ricasso (unhoned base section — slightly darker zone)
+  ctx.beginPath(); ctx.roundRect(cx - bw + 3, top + (bot-top) * 0.17, bw * 2 - 6, 9, 1);
+  ctx.fillStyle = "rgba(0,0,0,0.18)"; ctx.fill();
+
+  // Sharp-edge flash (right bevel catch)
+  ctx.beginPath(); ctx.moveTo(cx + bw - 2, top + 22); ctx.lineTo(cx + bw - 2, bot - 8);
+  ctx.strokeStyle = "rgba(255,255,255,0.55)"; ctx.lineWidth = 1.5; ctx.stroke();
+
+  shine(ctx, cx - bw + 3, top + 22, cx - bw + 3, bot - 10, 0.45);
+  addGrit(ctx, 0.09);
+  addNoise(ctx, 0.03);
 }
 
 function drawSwordBladeSteel(ctx: CanvasRenderingContext2D) {
@@ -1808,6 +1825,366 @@ function drawSpearShaftBone(ctx: CanvasRenderingContext2D) {
   }
 }
 
+// ─── CURVED SWORD BLADES ─────────────────────────────────────────────────────
+
+function drawSwordBladeScimitar(ctx: CanvasRenderingContext2D) {
+  const cx = 64, top = 12, bot = 110;
+
+  // Scimitar path — wide belly, curves strongly toward tip
+  ctx.beginPath();
+  ctx.moveTo(cx, top);
+  ctx.bezierCurveTo(cx + 18, top + 16, cx + 30, top + 46, cx + 24, bot - 6);
+  ctx.lineTo(cx + 20, bot);
+  ctx.lineTo(cx + 15, bot);
+  ctx.bezierCurveTo(cx + 5, top + 62, cx - 6, top + 36, cx, top);
+  ctx.closePath();
+
+  const lg = ctx.createLinearGradient(cx - 6, 0, cx + 30, 0);
+  lg.addColorStop(0,    "#222222");
+  lg.addColorStop(0.18, "#606060");
+  lg.addColorStop(0.42, "#b8b8b8");
+  lg.addColorStop(0.62, "#e8e8e8");
+  lg.addColorStop(0.78, "#fafafa");
+  lg.addColorStop(0.9,  "#ffffff");
+  lg.addColorStop(1,    "#d0d0d0");
+  ctx.fillStyle = lg; ctx.fill();
+
+  // Clip for inner detail
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(cx, top);
+  ctx.bezierCurveTo(cx + 18, top + 16, cx + 30, top + 46, cx + 24, bot - 6);
+  ctx.lineTo(cx + 20, bot); ctx.lineTo(cx + 15, bot);
+  ctx.bezierCurveTo(cx + 5, top + 62, cx - 6, top + 36, cx, top);
+  ctx.closePath(); ctx.clip();
+  rimLight(ctx, "rgba(255,255,255,0.18)", 3);
+  addNoise(ctx, 0.04);
+  ctx.restore();
+
+  // Outline
+  ctx.beginPath();
+  ctx.moveTo(cx, top);
+  ctx.bezierCurveTo(cx + 18, top + 16, cx + 30, top + 46, cx + 24, bot - 6);
+  ctx.lineTo(cx + 20, bot); ctx.lineTo(cx + 15, bot);
+  ctx.bezierCurveTo(cx + 5, top + 62, cx - 6, top + 36, cx, top);
+  ctx.closePath();
+  outline(ctx, "#0d0d0d", 3.5);
+
+  // Bright edge shine along curved cutting edge
+  ctx.beginPath();
+  ctx.moveTo(cx + 15, top + 14);
+  ctx.bezierCurveTo(cx + 27, top + 40, cx + 25, top + 70, cx + 21, bot - 8);
+  ctx.strokeStyle = "rgba(255,255,255,0.88)"; ctx.lineWidth = 2; ctx.stroke();
+
+  // Fuller groove along spine
+  ctx.beginPath();
+  ctx.moveTo(cx - 2, top + 22);
+  ctx.bezierCurveTo(cx - 3, top + 48, cx + 3, top + 74, cx + 8, bot - 12);
+  ctx.strokeStyle = "rgba(255,255,255,0.32)"; ctx.lineWidth = 1.8; ctx.stroke();
+
+  // Spine shadow
+  ctx.beginPath();
+  ctx.moveTo(cx - 3, top + 22);
+  ctx.bezierCurveTo(cx - 4, top + 48, cx + 2, top + 74, cx + 7, bot - 12);
+  ctx.strokeStyle = "rgba(0,0,0,0.3)"; ctx.lineWidth = 1; ctx.stroke();
+
+  // Arabic/Arabesque engraving near guard
+  ctx.strokeStyle = "rgba(180,145,60,0.65)"; ctx.lineWidth = 0.9;
+  ctx.beginPath();
+  ctx.moveTo(cx - 3, top + 28);
+  ctx.bezierCurveTo(cx + 4, top + 34, cx + 2, top + 42, cx - 3, top + 48);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(cx + 4, top + 36, 3, 0, Math.PI * 2);
+  ctx.fillStyle = "rgba(180,145,60,0.4)"; ctx.fill();
+
+  addGrit(ctx, 0.06);
+}
+
+function drawSwordBladeKatana(ctx: CanvasRenderingContext2D) {
+  // Long, gently curved Japanese blade with hamon temper line
+  const cx = 64, top = 6, bot = 114;
+
+  ctx.beginPath();
+  ctx.moveTo(cx - 2, top);
+  ctx.bezierCurveTo(cx + 9,  top + 28, cx + 11, top + 66, cx + 8, bot - 4);
+  ctx.lineTo(cx + 5, bot); ctx.lineTo(cx + 1, bot);
+  ctx.bezierCurveTo(cx - 4, top + 66, cx - 4, top + 28, cx - 2, top);
+  ctx.closePath();
+
+  const lg = ctx.createLinearGradient(cx - 4, 0, cx + 11, 0);
+  lg.addColorStop(0,    "#141414");
+  lg.addColorStop(0.18, "#3a3a3a");
+  lg.addColorStop(0.42, "#909090");
+  lg.addColorStop(0.60, "#d8d8d8");
+  lg.addColorStop(0.74, "#f4f4f4");
+  lg.addColorStop(0.88, "#ffffff");
+  lg.addColorStop(1,    "#e0e0e0");
+  ctx.fillStyle = lg; ctx.fill();
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(cx - 2, top);
+  ctx.bezierCurveTo(cx + 9, top + 28, cx + 11, top + 66, cx + 8, bot - 4);
+  ctx.lineTo(cx + 5, bot); ctx.lineTo(cx + 1, bot);
+  ctx.bezierCurveTo(cx - 4, top + 66, cx - 4, top + 28, cx - 2, top);
+  ctx.closePath(); ctx.clip();
+  addNoise(ctx, 0.025);
+  ctx.restore();
+
+  ctx.beginPath();
+  ctx.moveTo(cx - 2, top);
+  ctx.bezierCurveTo(cx + 9, top + 28, cx + 11, top + 66, cx + 8, bot - 4);
+  ctx.lineTo(cx + 5, bot); ctx.lineTo(cx + 1, bot);
+  ctx.bezierCurveTo(cx - 4, top + 66, cx - 4, top + 28, cx - 2, top);
+  ctx.closePath();
+  outline(ctx, "#0d0d0d", 3);
+
+  // Hamon (temper line) — wavy, near the ha (edge)
+  ctx.beginPath();
+  let hy = top + 20;
+  ctx.moveTo(cx + 5, hy);
+  while (hy < bot - 14) {
+    const wave = Math.sin((hy - top) * 0.14) * 1.6;
+    ctx.lineTo(cx + 5.5 + wave, hy + 8);
+    ctx.lineTo(cx + 4.5 + wave * 0.5, hy + 16);
+    hy += 16;
+  }
+  ctx.strokeStyle = "rgba(210,210,210,0.55)"; ctx.lineWidth = 1.2; ctx.stroke();
+
+  // Ha (cutting edge) brilliant white line
+  ctx.beginPath();
+  ctx.moveTo(cx + 8, top + 22);
+  ctx.bezierCurveTo(cx + 10, top + 55, cx + 10, top + 82, cx + 7, bot - 8);
+  ctx.strokeStyle = "rgba(255,255,255,0.92)"; ctx.lineWidth = 1.5; ctx.stroke();
+
+  // Kissaki (tip) highlight
+  ctx.beginPath();
+  ctx.moveTo(cx - 2, top); ctx.lineTo(cx + 6, top + 14);
+  ctx.strokeStyle = "rgba(255,255,255,0.65)"; ctx.lineWidth = 1; ctx.stroke();
+
+  // Ji (blade body) sheen
+  ctx.beginPath();
+  ctx.moveTo(cx - 1, top + 32);
+  ctx.bezierCurveTo(cx - 1, top + 58, cx, top + 84, cx + 1, bot - 22);
+  ctx.strokeStyle = "rgba(255,255,255,0.28)"; ctx.lineWidth = 2; ctx.stroke();
+}
+
+function drawSwordBladeSabre(ctx: CanvasRenderingContext2D) {
+  // European cavalry sabre — medium curve, wide near base, slim tip
+  const cx = 64, top = 10, bot = 110;
+
+  ctx.beginPath();
+  ctx.moveTo(cx - 4, top);
+  ctx.bezierCurveTo(cx + 15, top + 24, cx + 19, top + 56, cx + 13, bot - 6);
+  ctx.lineTo(cx + 9, bot); ctx.lineTo(cx + 3, bot);
+  ctx.bezierCurveTo(cx - 3, top + 56, cx - 7, top + 28, cx - 4, top);
+  ctx.closePath();
+
+  const lg = ctx.createLinearGradient(cx - 7, 0, cx + 19, 0);
+  lg.addColorStop(0,    "#252525");
+  lg.addColorStop(0.18, "#525252");
+  lg.addColorStop(0.42, "#a8a8b0");
+  lg.addColorStop(0.60, "#d6d6e0");
+  lg.addColorStop(0.76, "#f2f2f2");
+  lg.addColorStop(0.90, "#ffffff");
+  lg.addColorStop(1,    "#e0e0e0");
+  ctx.fillStyle = lg; ctx.fill();
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(cx - 4, top);
+  ctx.bezierCurveTo(cx + 15, top + 24, cx + 19, top + 56, cx + 13, bot - 6);
+  ctx.lineTo(cx + 9, bot); ctx.lineTo(cx + 3, bot);
+  ctx.bezierCurveTo(cx - 3, top + 56, cx - 7, top + 28, cx - 4, top);
+  ctx.closePath(); ctx.clip();
+  rimLight(ctx, "rgba(255,255,255,0.2)", 3);
+  addNoise(ctx, 0.04);
+  ctx.restore();
+
+  ctx.beginPath();
+  ctx.moveTo(cx - 4, top);
+  ctx.bezierCurveTo(cx + 15, top + 24, cx + 19, top + 56, cx + 13, bot - 6);
+  ctx.lineTo(cx + 9, bot); ctx.lineTo(cx + 3, bot);
+  ctx.bezierCurveTo(cx - 3, top + 56, cx - 7, top + 28, cx - 4, top);
+  ctx.closePath();
+  outline(ctx, "#0d0d0d", 3.5);
+
+  // Deep fuller groove
+  ctx.beginPath();
+  ctx.moveTo(cx - 3, top + 20);
+  ctx.bezierCurveTo(cx, top + 48, cx + 3, top + 72, cx + 5, bot - 12);
+  ctx.strokeStyle = "rgba(255,255,255,0.42)"; ctx.lineWidth = 2; ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(cx - 2, top + 20);
+  ctx.bezierCurveTo(cx + 1, top + 48, cx + 4, top + 72, cx + 6, bot - 12);
+  ctx.strokeStyle = "rgba(0,0,0,0.28)"; ctx.lineWidth = 1; ctx.stroke();
+
+  // Edge shine
+  ctx.beginPath();
+  ctx.moveTo(cx + 13, top + 20);
+  ctx.bezierCurveTo(cx + 18, top + 50, cx + 15, top + 76, cx + 11, bot - 8);
+  ctx.strokeStyle = "rgba(255,255,255,0.82)"; ctx.lineWidth = 1.8; ctx.stroke();
+
+  // Spine shadow line
+  ctx.beginPath();
+  ctx.moveTo(cx - 4, top + 14);
+  ctx.bezierCurveTo(cx - 5, top + 40, cx - 4, top + 70, cx - 2, bot - 14);
+  ctx.strokeStyle = "rgba(0,0,0,0.25)"; ctx.lineWidth = 1.5; ctx.stroke();
+
+  shine(ctx, cx - 5, top + 14, cx - 3, bot - 14, 0.35);
+  addGrit(ctx, 0.08);
+}
+
+// ─── NEW GUARDS ───────────────────────────────────────────────────────────────
+
+function drawGuardCrescent(ctx: CanvasRenderingContext2D) {
+  // Crescent/D-guard for scimitar — curved, Arabic style
+  const cx = 64, cy = 64;
+
+  ctx.beginPath();
+  ctx.moveTo(cx - 22, cy - 8);
+  ctx.bezierCurveTo(cx - 34, cy, cx - 34, cy + 20, cx - 20, cy + 22);
+  ctx.bezierCurveTo(cx - 8,  cy + 26, cx + 8,  cy + 26, cx + 20, cy + 22);
+  ctx.bezierCurveTo(cx + 34, cy + 20, cx + 34, cy, cx + 22, cy - 8);
+  ctx.bezierCurveTo(cx + 14, cy - 16, cx - 14, cy - 16, cx - 22, cy - 8);
+  ctx.closePath();
+
+  const lg = ctx.createLinearGradient(cx - 34, 0, cx + 34, 0);
+  lg.addColorStop(0,   "#604400");
+  lg.addColorStop(0.3, "#c89018");
+  lg.addColorStop(0.5, "#f5d84a");
+  lg.addColorStop(0.7, "#c89018");
+  lg.addColorStop(1,   "#604400");
+  ctx.fillStyle = lg; ctx.fill();
+  outline(ctx, "#1a0a00", 3.5);
+
+  // Decorative oval cutouts (3 holes in guard body)
+  for (const [hx, hy] of [[cx - 18, cy + 10], [cx, cy + 12], [cx + 18, cy + 10]] as [number,number][]) {
+    ctx.save();
+    ctx.globalCompositeOperation = "destination-out";
+    ctx.beginPath(); ctx.ellipse(hx, hy, 5, 7, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+    ctx.beginPath(); ctx.ellipse(hx, hy, 5, 7, 0, 0, Math.PI * 2);
+    ctx.strokeStyle = "#1a0a00"; ctx.lineWidth = 1.5; ctx.stroke();
+  }
+
+  // Filigree arc engraving
+  ctx.beginPath(); ctx.arc(cx, cy + 10, 16, Math.PI * 0.08, Math.PI * 0.92);
+  ctx.strokeStyle = "rgba(255,220,60,0.5)"; ctx.lineWidth = 1.2; ctx.stroke();
+
+  // Gold rivets at wing tips
+  for (const [rx, ry] of [[cx - 30, cy + 6], [cx + 30, cy + 6]] as [number,number][]) {
+    ctx.beginPath(); ctx.arc(rx, ry, 3.5, 0, Math.PI * 2);
+    const rg = ctx.createRadialGradient(rx - 1, ry - 1, 0, rx, ry, 3.5);
+    rg.addColorStop(0, "#fff176"); rg.addColorStop(1, "#7a4800");
+    ctx.fillStyle = rg; ctx.fill(); outline(ctx, "#1a0a00", 1.5);
+  }
+
+  shine(ctx, cx - 30, cy - 6, cx - 12, cy - 10, 0.6);
+  shine(ctx, cx + 12, cy - 10, cx + 30, cy - 6, 0.6);
+}
+
+function drawGuardTsuba(ctx: CanvasRenderingContext2D) {
+  // Japanese circular tsuba handguard
+  const cx = 64, cy = 64;
+
+  ctx.beginPath(); ctx.arc(cx, cy, 30, 0, Math.PI * 2);
+  const lg = ctx.createRadialGradient(cx - 7, cy - 7, 0, cx, cy, 30);
+  lg.addColorStop(0,   "#505858");
+  lg.addColorStop(0.4, "#2c3232");
+  lg.addColorStop(0.75,"#1a1e1e");
+  lg.addColorStop(1,   "#0d1010");
+  ctx.fillStyle = lg; ctx.fill();
+  outline(ctx, "#060808", 3.5);
+
+  // Inner groove ring
+  ctx.beginPath(); ctx.arc(cx, cy, 22, 0, Math.PI * 2);
+  ctx.strokeStyle = "#445050"; ctx.lineWidth = 2; ctx.stroke();
+
+  // Hitsu-ana (traditional teardrop cutouts)
+  for (const angle of [Math.PI * 0.6, Math.PI * 1.6]) {
+    ctx.save();
+    ctx.translate(cx, cy); ctx.rotate(angle);
+    ctx.globalCompositeOperation = "destination-out";
+    ctx.beginPath(); ctx.ellipse(14, 0, 4, 7, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+    ctx.save();
+    ctx.translate(cx, cy); ctx.rotate(angle);
+    ctx.beginPath(); ctx.ellipse(14, 0, 4, 7, 0, 0, Math.PI * 2);
+    ctx.strokeStyle = "#1e2626"; ctx.lineWidth = 1.5; ctx.stroke();
+    ctx.restore();
+  }
+
+  // Center blade slot
+  ctx.globalCompositeOperation = "destination-out";
+  ctx.beginPath(); ctx.roundRect(cx - 4, cy - 11, 8, 22, 1); ctx.fill();
+  ctx.globalCompositeOperation = "source-over";
+  ctx.beginPath(); ctx.roundRect(cx - 4, cy - 11, 8, 22, 1);
+  ctx.strokeStyle = "#1e2626"; ctx.lineWidth = 1.5; ctx.stroke();
+
+  // Gold sakura inlay dots (6 petals around inner ring)
+  ctx.fillStyle = "rgba(200,158,20,0.75)"; ctx.strokeStyle = "rgba(200,158,20,0.9)"; ctx.lineWidth = 0.8;
+  for (let i = 0; i < 6; i++) {
+    const a = (i / 6) * Math.PI * 2;
+    const px = cx + 16 * Math.cos(a), py = cy + 16 * Math.sin(a);
+    ctx.beginPath(); ctx.arc(px, py, 2.5, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  }
+
+  // Rim highlight
+  ctx.beginPath(); ctx.arc(cx, cy, 28, -Math.PI * 0.45, Math.PI * 0.35);
+  ctx.strokeStyle = "rgba(110,150,150,0.65)"; ctx.lineWidth = 2.5; ctx.stroke();
+
+  shine(ctx, cx - 22, cy - 22, cx - 10, cy - 16, 0.55);
+}
+
+// ─── NEW POMMELS ──────────────────────────────────────────────────────────────
+
+function drawPommelRing(ctx: CanvasRenderingContext2D) {
+  // Ring pommel — classic on cavalry sabres and medieval swords
+  const cx = 64, cy = 100, outerR = 14, innerR = 8;
+  // Outer torus
+  ctx.beginPath(); ctx.arc(cx, cy, outerR, 0, Math.PI * 2);
+  const g = ctx.createRadialGradient(cx - 4, cy - 4, 0, cx, cy, outerR);
+  g.addColorStop(0,   "#d8d8d8");
+  g.addColorStop(0.45,"#909090");
+  g.addColorStop(0.8, "#505050");
+  g.addColorStop(1,   "#282828");
+  ctx.fillStyle = g; ctx.fill(); outline(ctx, "#1a1a1a", 3);
+  // Inner hole
+  ctx.beginPath(); ctx.arc(cx, cy, innerR, 0, Math.PI * 2);
+  ctx.fillStyle = "#111"; ctx.fill();
+  ctx.strokeStyle = "#333"; ctx.lineWidth = 1.2; ctx.stroke();
+  // Highlight arc
+  ctx.beginPath(); ctx.arc(cx, cy, outerR - 3, -Math.PI * 0.55, Math.PI * 0.15);
+  ctx.strokeStyle = "rgba(255,255,255,0.65)"; ctx.lineWidth = 2.5; ctx.stroke();
+  shine(ctx, cx - outerR + 3, cy - outerR + 3, cx - 4, cy - outerR + 8, 0.6);
+}
+
+function drawPommelDisc(ctx: CanvasRenderingContext2D) {
+  // Disc/wheel pommel — matching Japanese katana style
+  const cx = 64, cy = 100, r = 14;
+  ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  const g = ctx.createRadialGradient(cx - 5, cy - 5, 0, cx, cy, r);
+  g.addColorStop(0,   "#505858");
+  g.addColorStop(0.4, "#303838");
+  g.addColorStop(0.75,"#1a2020");
+  g.addColorStop(1,   "#0d1010");
+  ctx.fillStyle = g; ctx.fill(); outline(ctx, "#060808", 3);
+  // Menuki-inspired gold ring inlay
+  ctx.beginPath(); ctx.arc(cx, cy, r - 5, 0, Math.PI * 2);
+  ctx.strokeStyle = "rgba(200,158,20,0.8)"; ctx.lineWidth = 1.5; ctx.stroke();
+  // Center cap rivet
+  ctx.beginPath(); ctx.arc(cx, cy, 4, 0, Math.PI * 2);
+  const cg = ctx.createRadialGradient(cx - 1, cy - 1, 0, cx, cy, 4);
+  cg.addColorStop(0, "#fff176"); cg.addColorStop(1, "#7a4800");
+  ctx.fillStyle = cg; ctx.fill(); outline(ctx, "#1a0a00", 1.5);
+  // Rim arc highlight
+  ctx.beginPath(); ctx.arc(cx, cy, r - 1, -Math.PI * 0.5, Math.PI * 0.2);
+  ctx.strokeStyle = "rgba(100,140,140,0.7)"; ctx.lineWidth = 2; ctx.stroke();
+  shine(ctx, cx - r + 3, cy - r + 3, cx - 4, cy - r + 8, 0.5);
+}
+
 // ─── PART REGISTRY ────────────────────────────────────────────────────────────
 
 export const ALL_PARTS: WeaponPart[] = [
@@ -1820,6 +2197,9 @@ export const ALL_PARTS: WeaponPart[] = [
   { id: "sword_blade_forest_06", name: "Ancient Forest Blade", category: "sword_blade", material: "nature", rarity: "rare", tags: ["nature", "forest_biome"], draw: drawSwordBladeForest },
   { id: "sword_blade_frost_07", name: "Frostborn Blade", category: "sword_blade", material: "ice", rarity: "rare", tags: ["ice", "tundra_biome"], draw: drawSwordBladeFrost },
   { id: "sword_blade_ancient_08", name: "Ancient Bronze Blade", category: "sword_blade", material: "gold", rarity: "uncommon", tags: ["physical", "ruins_biome"], draw: drawSwordBladeAncient },
+  { id: "sword_blade_scimitar_09", name: "Desert Scimitar", category: "sword_blade", material: "iron", rarity: "rare", tags: ["physical", "desert_biome"], draw: drawSwordBladeScimitar },
+  { id: "sword_blade_katana_10", name: "Obsidian Katana", category: "sword_blade", material: "steel", rarity: "epic", tags: ["physical", "eastern_faction"], draw: drawSwordBladeKatana },
+  { id: "sword_blade_sabre_11", name: "Cavalry Sabre", category: "sword_blade", material: "steel", rarity: "uncommon", tags: ["physical", "any_biome"], draw: drawSwordBladeSabre },
 
   // SWORD GUARDS
   { id: "sword_guard_iron_01", name: "Simple Crossguard", category: "sword_guard", material: "iron", rarity: "common", tags: ["physical"], draw: drawGuardSimpleIron },
@@ -1828,6 +2208,8 @@ export const ALL_PARTS: WeaponPart[] = [
   { id: "sword_guard_bone_04", name: "Skull Bone Guard", category: "sword_guard", material: "bone", rarity: "rare", tags: ["physical", "undead_faction"], draw: drawGuardBoneSkull },
   { id: "sword_guard_void_05", name: "Twisted Void Guard", category: "sword_guard", material: "void", rarity: "epic", tags: ["magical", "void_biome"], draw: drawGuardVoidTwist },
   { id: "sword_guard_fire_06", name: "Fire Wing Guard", category: "sword_guard", material: "fire", rarity: "rare", tags: ["fire", "volcanic_biome"], draw: drawGuardFireWings },
+  { id: "sword_guard_crescent_07", name: "Crescent Desert Guard", category: "sword_guard", material: "gold", rarity: "rare", tags: ["physical", "desert_biome"], draw: drawGuardCrescent },
+  { id: "sword_guard_tsuba_08", name: "Iron Tsuba", category: "sword_guard", material: "iron", rarity: "uncommon", tags: ["physical", "eastern_faction"], draw: drawGuardTsuba },
 
   // SWORD HANDLES
   { id: "sword_handle_leather_01", name: "Leather Wrapped Grip", category: "sword_handle", material: "leather", rarity: "common", tags: ["physical"], draw: drawHandleLeather },
@@ -1842,6 +2224,8 @@ export const ALL_PARTS: WeaponPart[] = [
   { id: "sword_pommel_crystal_03", name: "Crystal Teardrop Pommel", category: "sword_pommel", material: "crystal", rarity: "rare", tags: ["magical"], draw: drawPommelCrystal },
   { id: "sword_pommel_royal_04", name: "Royal Crown Pommel", category: "sword_pommel", material: "royal", rarity: "legendary", tags: ["physical", "royal_faction"], draw: drawPommelRoyal },
   { id: "sword_pommel_void_05", name: "Void Eye Pommel", category: "sword_pommel", material: "void", rarity: "epic", tags: ["magical", "void_biome"], draw: drawPommelVoid },
+  { id: "sword_pommel_ring_06", name: "Steel Ring Pommel", category: "sword_pommel", material: "iron", rarity: "common", tags: ["physical", "any_biome"], draw: drawPommelRing },
+  { id: "sword_pommel_disc_07", name: "Iron Disc Pommel", category: "sword_pommel", material: "iron", rarity: "uncommon", tags: ["physical", "eastern_faction"], draw: drawPommelDisc },
 
   // AXE HEADS
   { id: "axe_head_iron_01", name: "Iron Single-Bit Axe", category: "axe_head", material: "iron", rarity: "common", tags: ["physical", "any_biome"], draw: drawAxeHeadIron },
