@@ -7,6 +7,7 @@ const CX = 64, CY = 64, SIZE = 128;
 
 function glowRim(ctx: CanvasRenderingContext2D, color: string, alpha: number, blur: number, spread: number) {
   ctx.save();
+  ctx.globalCompositeOperation = "screen";
   ctx.shadowColor = color;
   ctx.shadowBlur = blur;
   ctx.globalAlpha = alpha;
@@ -15,26 +16,43 @@ function glowRim(ctx: CanvasRenderingContext2D, color: string, alpha: number, bl
   ctx.lineWidth = spread;
   const m = spread / 2 + 2;
   ctx.beginPath();
-  ctx.roundRect(m, m, SIZE - m * 2, SIZE - m * 2, 10);
+  ctx.roundRect(m, m, SIZE - m * 2, SIZE - m * 2, 12);
   ctx.stroke();
 
   // Secondary softer glow
-  ctx.shadowBlur = blur * 1.5;
-  ctx.lineWidth = spread * 0.5;
+  ctx.shadowBlur = blur * 2;
+  ctx.lineWidth = spread * 0.7;
   ctx.stroke();
+
+  // Outer bloom
+  const rg = ctx.createRadialGradient(CX, CY, 40, CX, CY, 64);
+  rg.addColorStop(0, "transparent");
+  rg.addColorStop(1, color);
+  ctx.globalAlpha = alpha * 0.3;
+  ctx.fillStyle = rg;
+  ctx.fillRect(0, 0, SIZE, SIZE);
+
   ctx.restore();
 }
 
 function rays(ctx: CanvasRenderingContext2D, color: string, count: number, len: number, alpha: number) {
   ctx.save();
+  ctx.globalCompositeOperation = "screen";
   ctx.globalAlpha = alpha;
   ctx.strokeStyle = color;
-  ctx.lineWidth = 1.5;
+  ctx.lineWidth = 2;
   ctx.shadowColor = color;
-  ctx.shadowBlur = 6;
+  ctx.shadowBlur = 8;
   for (let i = 0; i < count; i++) {
     const a = (i / count) * Math.PI * 2;
     const r0 = 46, r1 = r0 + len;
+    const lg = ctx.createLinearGradient(
+      CX + r0 * Math.cos(a), CY + r0 * Math.sin(a),
+      CX + r1 * Math.cos(a), CY + r1 * Math.sin(a)
+    );
+    lg.addColorStop(0, color);
+    lg.addColorStop(1, "transparent");
+    ctx.strokeStyle = lg;
     ctx.beginPath();
     ctx.moveTo(CX + r0 * Math.cos(a), CY + r0 * Math.sin(a));
     ctx.lineTo(CX + r1 * Math.cos(a), CY + r1 * Math.sin(a));
@@ -45,15 +63,25 @@ function rays(ctx: CanvasRenderingContext2D, color: string, count: number, len: 
 
 function particles(ctx: CanvasRenderingContext2D, color: string, count: number, rMin: number, rMax: number, dotR: number, alpha: number) {
   ctx.save();
+  ctx.globalCompositeOperation = "screen";
   ctx.globalAlpha = alpha;
   ctx.fillStyle = color;
   ctx.shadowColor = color;
-  ctx.shadowBlur = 6;
+  ctx.shadowBlur = 8;
   for (let i = 0; i < count; i++) {
     const a = (i / count) * Math.PI * 2 + 0.3;
     const r = rMin + ((i * 7919) % (rMax - rMin));
+    const x = CX + r * Math.cos(a);
+    const y = CY + r * Math.sin(a);
+
+    const rg = ctx.createRadialGradient(x, y, 0, x, y, dotR * 1.5);
+    rg.addColorStop(0, "#ffffff");
+    rg.addColorStop(0.4, color);
+    rg.addColorStop(1, "transparent");
+
+    ctx.fillStyle = rg;
     ctx.beginPath();
-    ctx.arc(CX + r * Math.cos(a), CY + r * Math.sin(a), dotR, 0, Math.PI * 2);
+    ctx.arc(x, y, dotR * 1.5, 0, Math.PI * 2);
     ctx.fill();
   }
   ctx.restore();
@@ -82,112 +110,113 @@ export function drawRarityAura(ctx: CanvasRenderingContext2D, rarity: RarityLeve
     }
     case "uncommon": {
       // Green outer glow rim + green sparkles
-      outerGlow(ctx, "rgba(0,200,60,0.18)", 1, 64);
-      glowRim(ctx, "#00c83c", 0.55, 10, 3);
-      particles(ctx, "#44ff88", 8, 50, 60, 1.8, 0.7);
+      outerGlow(ctx, "rgba(0,255,80,0.22)", 1, 64);
+      glowRim(ctx, "#1eff00", 0.6, 12, 3);
+      particles(ctx, "#44ff88", 10, 48, 62, 2.0, 0.75);
       break;
     }
     case "rare": {
       // Blue pulsing rim + corner rays + blue particles
-      outerGlow(ctx, "rgba(0,112,221,0.22)", 1, 64);
-      glowRim(ctx, "#0070dd", 0.65, 14, 3.5);
-      rays(ctx, "#4ea8ff", 8, 10, 0.55);
-      particles(ctx, "#80c8ff", 12, 48, 60, 2, 0.75);
+      outerGlow(ctx, "rgba(0,140,255,0.25)", 1, 64);
+      glowRim(ctx, "#0070dd", 0.7, 16, 4);
+      rays(ctx, "#4ea8ff", 12, 12, 0.6);
+      particles(ctx, "#80c8ff", 14, 46, 62, 2.2, 0.8);
       // Bright corner glints
       ctx.save();
-      ctx.globalAlpha = 0.5;
+      ctx.globalCompositeOperation = "screen";
       for (const [cx2, cy2] of [[6, 6], [122, 6], [6, 122], [122, 122]]) {
-        ctx.beginPath(); ctx.arc(cx2, cy2, 3, 0, Math.PI * 2);
-        ctx.fillStyle = "#80c8ff"; ctx.shadowColor = "#0070dd"; ctx.shadowBlur = 8; ctx.fill();
+        ctx.beginPath(); ctx.arc(cx2, cy2, 4, 0, Math.PI * 2);
+        ctx.fillStyle = "#ffffff"; ctx.shadowColor = "#0070dd"; ctx.shadowBlur = 12; ctx.fill();
       }
       ctx.restore();
       break;
     }
     case "epic": {
       // Purple void rim glow + orbiting dim orbs + edge shimmer lines
-      outerGlow(ctx, "rgba(163,53,238,0.28)", 1, 64);
-      glowRim(ctx, "#a335ee", 0.7, 16, 4);
-      particles(ctx, "#cc88ff", 10, 50, 62, 2.5, 0.8);
+      outerGlow(ctx, "rgba(180,60,255,0.3)", 1, 64);
+      glowRim(ctx, "#a335ee", 0.75, 20, 4.5);
+      particles(ctx, "#cc88ff", 12, 48, 62, 2.8, 0.85);
       // Orbiting larger orbs
       ctx.save();
-      ctx.globalAlpha = 0.65;
+      ctx.globalCompositeOperation = "screen";
       for (let i = 0; i < 4; i++) {
         const a = (i / 4) * Math.PI * 2 + 0.78;
         const x = CX + 55 * Math.cos(a); const y = CY + 55 * Math.sin(a);
-        ctx.beginPath(); ctx.arc(x, y, 4, 0, Math.PI * 2);
-        ctx.fillStyle = "#b060ff"; ctx.shadowColor = "#9030d0"; ctx.shadowBlur = 10; ctx.fill();
+        ctx.beginPath(); ctx.arc(x, y, 5, 0, Math.PI * 2);
+        ctx.fillStyle = "#ffffff"; ctx.shadowColor = "#a335ee"; ctx.shadowBlur = 14; ctx.fill();
       }
       ctx.restore();
       // Corner arcane symbols
       ctx.save();
-      ctx.globalAlpha = 0.5;
-      ctx.strokeStyle = "#a335ee"; ctx.lineWidth = 1.2; ctx.shadowColor = "#a335ee"; ctx.shadowBlur = 6;
+      ctx.globalCompositeOperation = "screen";
+      ctx.strokeStyle = "#cc88ff"; ctx.lineWidth = 1.5; ctx.shadowColor = "#a335ee"; ctx.shadowBlur = 8;
       for (const [ox, oy] of [[8, 8], [120, 8], [8, 120], [120, 120]]) {
-        ctx.beginPath(); ctx.arc(ox, oy, 5, 0, Math.PI * 2); ctx.stroke();
-        ctx.beginPath(); ctx.moveTo(ox - 4, oy); ctx.lineTo(ox + 4, oy); ctx.stroke();
-        ctx.beginPath(); ctx.moveTo(ox, oy - 4); ctx.lineTo(ox, oy + 4); ctx.stroke();
+        ctx.beginPath(); ctx.arc(ox, oy, 6, 0, Math.PI * 2); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(ox - 5, oy); ctx.lineTo(ox + 5, oy); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(ox, oy - 5); ctx.lineTo(ox, oy + 5); ctx.stroke();
       }
       ctx.restore();
       break;
     }
     case "legendary": {
       // Bright gold star burst + gold rim + 16 rays + heavy glow
-      outerGlow(ctx, "rgba(255,128,0,0.32)", 1, 64);
-      glowRim(ctx, "#ff8000", 0.8, 20, 5);
-      rays(ctx, "#ffd060", 16, 14, 0.65);
-      particles(ctx, "#ffe080", 14, 48, 62, 2.2, 0.85);
+      outerGlow(ctx, "rgba(255,160,0,0.35)", 1, 64);
+      glowRim(ctx, "#ff8000", 0.85, 24, 5.5);
+      rays(ctx, "#ffd060", 20, 16, 0.75);
+      particles(ctx, "#ffe080", 16, 46, 64, 2.5, 0.9);
       // Central star gleam (4-pointed)
       ctx.save();
-      ctx.globalAlpha = 0.4;
-      ctx.fillStyle = "#fffde0";
-      ctx.shadowColor = "#ffaa00"; ctx.shadowBlur = 18;
+      ctx.globalCompositeOperation = "screen";
+      ctx.fillStyle = "#ffffff";
+      ctx.shadowColor = "#ffaa00"; ctx.shadowBlur = 24;
       for (let i = 0; i < 4; i++) {
         ctx.save();
         ctx.translate(CX, CY);
         ctx.rotate((i / 4) * Math.PI * 2);
         ctx.beginPath();
-        ctx.moveTo(0, -62); ctx.lineTo(4, -10); ctx.lineTo(0, 0); ctx.lineTo(-4, -10);
+        ctx.moveTo(0, -64); ctx.lineTo(6, -12); ctx.lineTo(0, 0); ctx.lineTo(-6, -12);
         ctx.closePath(); ctx.fill(); ctx.restore();
       }
       ctx.restore();
       // Corner golden diamonds
       ctx.save();
-      ctx.globalAlpha = 0.7;
+      ctx.globalCompositeOperation = "screen";
       for (const [ox, oy] of [[6, 6], [122, 6], [6, 122], [122, 122]]) {
         ctx.save(); ctx.translate(ox, oy); ctx.rotate(Math.PI / 4);
-        ctx.fillStyle = "#ffcc00"; ctx.shadowColor = "#ff8000"; ctx.shadowBlur = 8;
-        ctx.fillRect(-3.5, -3.5, 7, 7); ctx.restore();
+        ctx.fillStyle = "#ffffff"; ctx.shadowColor = "#ff8000"; ctx.shadowBlur = 12;
+        ctx.fillRect(-4.5, -4.5, 9, 9); ctx.restore();
       }
       ctx.restore();
       break;
     }
     case "mythic": {
       // Cosmic pink/purple — intense outer nebula + rune ring + crown stars + swirl
-      outerGlow(ctx, "rgba(255,100,200,0.35)", 1, 64);
-      glowRim(ctx, "#ff50d0", 0.85, 24, 6);
-      rays(ctx, "#ff80e8", 24, 16, 0.5);
-      particles(ctx, "#ffaaff", 16, 46, 62, 2.5, 0.9);
+      outerGlow(ctx, "rgba(255,120,220,0.4)", 1, 64);
+      glowRim(ctx, "#ff50d0", 0.9, 28, 7);
+      rays(ctx, "#ff80e8", 32, 20, 0.65);
+      particles(ctx, "#ffaaff", 20, 44, 64, 2.8, 0.95);
       // Orbiting rune ring
       ctx.save();
-      ctx.strokeStyle = "#cc40b0"; ctx.lineWidth = 1; ctx.globalAlpha = 0.45;
-      ctx.shadowColor = "#ff40cc"; ctx.shadowBlur = 8;
+      ctx.globalCompositeOperation = "screen";
+      ctx.strokeStyle = "#ff80e8"; ctx.lineWidth = 1.5;
+      ctx.shadowColor = "#ff50d0"; ctx.shadowBlur = 12;
       ctx.beginPath(); ctx.arc(CX, CY, 58, 0, Math.PI * 2); ctx.stroke();
       ctx.restore();
       // Crown of stars on the ring
       ctx.save();
-      ctx.globalAlpha = 0.9;
+      ctx.globalCompositeOperation = "screen";
       for (let i = 0; i < 8; i++) {
         const a = (i / 8) * Math.PI * 2;
         const x = CX + 58 * Math.cos(a); const y = CY + 58 * Math.sin(a);
-        ctx.beginPath(); ctx.arc(x, y, 3, 0, Math.PI * 2);
-        ctx.fillStyle = "#ffaaff"; ctx.shadowColor = "#ff40cc"; ctx.shadowBlur = 10; ctx.fill();
+        ctx.beginPath(); ctx.arc(x, y, 4.5, 0, Math.PI * 2);
+        ctx.fillStyle = "#ffffff"; ctx.shadowColor = "#ff50d0"; ctx.shadowBlur = 14; ctx.fill();
       }
       ctx.restore();
       // Cosmic shimmer center
-      const cg = ctx.createRadialGradient(CX, CY, 0, CX, CY, 38);
-      cg.addColorStop(0, "rgba(255,180,255,0.12)");
+      const cg = ctx.createRadialGradient(CX, CY, 0, CX, CY, 42);
+      cg.addColorStop(0, "rgba(255,220,255,0.2)");
       cg.addColorStop(1, "transparent");
-      ctx.save(); ctx.fillStyle = cg; ctx.fillRect(0, 0, SIZE, SIZE); ctx.restore();
+      ctx.save(); ctx.globalCompositeOperation = "screen"; ctx.fillStyle = cg; ctx.fillRect(0, 0, SIZE, SIZE); ctx.restore();
       break;
     }
   }
