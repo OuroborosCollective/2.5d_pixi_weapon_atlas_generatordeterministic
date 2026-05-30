@@ -197,12 +197,44 @@ function shade(c: string, amt: number): string {
 // 4-tone shading palette for a base color
 function palette(c: string) {
   return {
-    hi:  shade(c,  42),   // specular highlight
-    l:   shade(c,  22),   // lit surface
+    hi:  shade(c,  56),   // specular highlight
+    l:   shade(c,  28),   // lit surface
     b:   c,               // base mid-tone
-    d:   shade(c, -26),   // shadow
-    vd:  shade(c, -48),   // deep shadow / outline
+    d:   shade(c, -32),   // shadow
+    vd:  shade(c, -64),   // deep shadow / outline
   };
+}
+
+// High-fidelity procedural utilities for 2.5D depth
+function rimLightPx(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, color: string) {
+  ctx.save();
+  ctx.globalCompositeOperation = 'screen';
+  ctx.fillStyle = color;
+  ctx.globalAlpha = 0.45;
+  ctx.fillRect(x|0, y|0, w|0, h|0);
+  ctx.restore();
+}
+
+function innerShadowPx(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, color: string) {
+  ctx.save();
+  ctx.globalCompositeOperation = 'multiply';
+  ctx.fillStyle = color;
+  ctx.globalAlpha = 0.35;
+  ctx.fillRect(x|0, y|0, w|0, h|0);
+  ctx.restore();
+}
+
+function addGritPx(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, opacity = 0.12) {
+  ctx.save();
+  ctx.globalCompositeOperation = 'overlay';
+  const density = (w * h) / 4;
+  for (let i = 0; i < density; i++) {
+    const px = x + (Math.random() * w);
+    const py = y + (Math.random() * h);
+    ctx.fillStyle = Math.random() > 0.5 ? `rgba(255,255,255,${opacity})` : `rgba(0,0,0,${opacity})`;
+    ctx.fillRect(px|0, py|0, 1, 1);
+  }
+  ctx.restore();
 }
 
 // Dithered row: alternates between two colors (checkerboard, 1px row)
@@ -269,15 +301,17 @@ export function drawHead(ctx: CanvasRenderingContext2D, cx: number, cy: number, 
     ctx.fillStyle = rowC;
     ctx.fillRect(px_, py_, pw_, 1);
 
-    // Left cheek highlight band (top-left lit)
-    if (t > 0.25 && t < 0.60) {
-      ctx.fillStyle = pal.l;
-      ctx.fillRect(px_, py_, Math.max(2, Math.round(pw_ * 0.28)), 1);
+    // High-fidelity depth enhancements
+    if (t > 0.15 && t < 0.65) {
+      rimLightPx(ctx, px_, py_, Math.max(1, Math.round(pw_ * 0.25)), 1, '#FFFFFF');
     }
-    // Right cheek shadow band
-    if (t > 0.30 && t < 0.72) {
-      ctx.fillStyle = pal.d;
-      ctx.fillRect(px_ + pw_ - Math.max(2, Math.round(pw_ * 0.22)), py_, Math.max(2, Math.round(pw_ * 0.22)), 1);
+    if (t > 0.35 && t < 0.85) {
+      innerShadowPx(ctx, px_ + pw_ - Math.max(1, Math.round(pw_ * 0.20)), py_, Math.max(1, Math.round(pw_ * 0.20)), 1, '#000000');
+    }
+
+    // Material texture
+    if (t > 0.2 && t < 0.8) {
+      addGritPx(ctx, px_, py_, pw_, 1, 0.08);
     }
 
     // Outer outline pixels at left and right edges of each row
@@ -667,20 +701,22 @@ export function drawTorsoArmor(
     ctx.fillStyle = rowC;
     ctx.fillRect(rx_, ry_, rw_, 1);
 
+    // High-fidelity depth enhancements
+    if (t > 0.1 && t < 0.7) {
+      rimLightPx(ctx, rx_, ry_, Math.max(1, Math.round(rw_ * 0.22)), 1, '#FFFFFF');
+    }
+    if (t > 0.3 && t < 0.9) {
+      innerShadowPx(ctx, rx_ + rw_ - Math.max(1, Math.round(rw_ * 0.18)), ry_, Math.max(1, Math.round(rw_ * 0.18)), 1, '#000000');
+    }
+
+    // Pauldron/Chest Texture
+    if (row < 8) {
+      addGritPx(ctx, rx_, ry_, rw_, 1, 0.1);
+    }
+
     // Dithered transition rows
     if (row === 2) ditherRow(ctx, rx_, ry_, rw_, pal.l, pal.b);
     if (row === Math.round(totalRows * 0.65)) ditherRow(ctx, rx_, ry_, rw_, pal.b, pal.d);
-
-    // Right-side shadow strip
-    if (row >= 4 && row < totalRows - 1) {
-      ctx.fillStyle = pal.d;
-      ctx.fillRect(rx_ + rw_ - 2, ry_, 2, 1);
-    }
-    // Left-side highlight strip
-    if (row >= 4 && row < totalRows - 2 && row !== totalRows - 3) {
-      ctx.fillStyle = pal.l;
-      ctx.fillRect(rx_, ry_, 2, 1);
-    }
 
     // Pauldron top outline
     if (row === 0 || (row === 4 && extraW > 0)) {
@@ -796,11 +832,17 @@ function drawMageRobe(
     else               rowC = pal.d;
     ctx.fillStyle = rowC;
     ctx.fillRect(rx_, robeTopY + row, rw_, 1);
+
+    // High-fidelity depth
+    if (t > 0.1 && t < 0.7) {
+      rimLightPx(ctx, rx_, robeTopY + row, Math.max(1, Math.round(rw_ * 0.20)), 1, '#FFFFFF');
+    }
+    if (t > 0.3 && t < 0.9) {
+      innerShadowPx(ctx, rx_ + rw_ - Math.max(1, Math.round(rw_ * 0.18)), robeTopY + row, Math.max(1, Math.round(rw_ * 0.18)), 1, '#000000');
+    }
+
     if (row === 2) ditherRow(ctx, rx_, robeTopY + row, rw_, pal.l, pal.b);
     if (row === 9) ditherRow(ctx, rx_, robeTopY + row, rw_, pal.b, pal.d);
-    // Right shadow
-    ctx.fillStyle = pal.d;
-    ctx.fillRect(rx_ + rw_ - 2, robeTopY + row, 2, 1);
     // Side outlines
     ctx.fillStyle = pal.vd;
     if (row === 0 || (extra > 0 && row === 3)) ctx.fillRect(rx_ - 1, robeTopY + row, rw_ + 2, 1);
@@ -912,13 +954,15 @@ export function drawArms(
     else               c = pal.d;
     ctx.fillStyle = c;
     ctx.fillRect(ax, armY + row, armW, 1);
+
+    // Rim lighting & Inner Shadow for volume
+    if (t > 0.1 && t < 0.75) {
+      rimLightPx(ctx, ax, armY + row, Math.max(1, Math.round(armW * 0.22)), 1, '#FFFFFF');
+    }
+    if (t > 0.35 && t < 0.9) {
+      innerShadowPx(ctx, ax + armW - Math.max(1, Math.round(armW * 0.18)), armY + row, Math.max(1, Math.round(armW * 0.18)), 1, '#000000');
+    }
   }
-  // Left-lit vertical edge
-  ctx.fillStyle = pal.l;
-  ctx.fillRect(ax, armY + 1, 1, armH - 2);
-  // Right shadow strip
-  ctx.fillStyle = pal.d;
-  ctx.fillRect(ax + armW - 1, armY + 2, 1, armH - 3);
 
   // Dither top highlight/mid transition
   ditherRow(ctx, ax, armY + 2, armW, pal.l, pal.b, isLeft ? 0 : 1);
@@ -959,19 +1003,20 @@ export function drawLegs(
       else               c = pal.vd; // back of knee shadow
       ctx.fillStyle = c;
       ctx.fillRect(lx, ly + row, legW, 1);
+
+      // Volume lighting
+      if (t > 0.1 && t < 0.7) {
+        rimLightPx(ctx, lx, ly + row, Math.max(1, Math.round(legW * 0.22)), 1, '#FFFFFF');
+      }
+      if (t > 0.3 && t < 0.9) {
+        innerShadowPx(ctx, lx + legW - Math.max(1, Math.round(legW * 0.18)), ly + row, Math.max(1, Math.round(legW * 0.18)), 1, '#000000');
+      }
     }
     // Knee cap highlight (1/3 down)
     const kneeRow = Math.round(legH * 0.28);
     ctx.fillStyle = pal.hi;
     ctx.fillRect(lx + 1, ly + kneeRow, legW - 2, 2);
-    ctx.fillStyle = pal.l;
-    ctx.fillRect(lx, ly + kneeRow - 1, legW, 1);
-    // Inner-leg shadow (separation)
-    ctx.fillStyle = pal.vd;
-    ctx.fillRect(isRight ? lx : lx + legW - 1, ly + 2, 1, legH - 3);
-    // Left lit edge on outer side
-    ctx.fillStyle = pal.l;
-    ctx.fillRect(isRight ? lx + legW - 1 : lx, ly + 1, 1, legH - 2);
+    rimLightPx(ctx, lx + 1, ly + kneeRow, legW - 2, 2, '#FFFFFF');
 
     // Boot top
     px(ctx, lx - 1, ly + legH,     legW + 2, 4, bootC);
