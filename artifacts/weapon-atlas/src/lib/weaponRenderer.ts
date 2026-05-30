@@ -8,6 +8,8 @@ export interface WeaponPart {
   draw: (ctx: CanvasRenderingContext2D) => void;
 }
 
+import { shade as shadeUtil, addGritPx, rimLightPx as rimLightPxUtil } from './canvasUtils';
+
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 function outline(ctx: CanvasRenderingContext2D, color = "#0d0d0d", lw = 3.5) {
@@ -91,28 +93,40 @@ function gem(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, c1:
   ctx.lineTo(x - r * 0.85, y + r * 0.4);
   ctx.lineTo(x - r * 0.85, y - r * 0.4);
   ctx.closePath();
-  const g = ctx.createRadialGradient(x - r * 0.3, y - r * 0.4, 0, x, y, r * 1.2);
+  const g = ctx.createRadialGradient(x - r * 0.4, y - r * 0.5, 0, x, y, r * 1.4);
   g.addColorStop(0, "#ffffff");
-  g.addColorStop(0.15, c1);
-  g.addColorStop(1, c2);
+  g.addColorStop(0.2, c1);
+  g.addColorStop(0.8, c2);
+  g.addColorStop(1, shadeUtil(c2, -40));
   ctx.fillStyle = g;
   ctx.fill();
-  ctx.strokeStyle = "rgba(0,0,0,0.8)";
-  ctx.lineWidth = 1.8;
+  ctx.strokeStyle = "rgba(0,0,0,0.9)";
+  ctx.lineWidth = 2;
   ctx.stroke();
 
-  // Internal facets
+  // Internal facets - Star pattern
   ctx.beginPath();
-  ctx.moveTo(x - r * 0.85, y - r * 0.4);
+  for (let i = 0; i < 6; i++) {
+    const a = (i / 6) * Math.PI * 2 - Math.PI / 2;
+    ctx.moveTo(x, y);
+    ctx.lineTo(x + r * 0.85 * Math.cos(a), y + r * 0.85 * Math.sin(a));
+  }
+  ctx.strokeStyle = "rgba(255,255,255,0.4)";
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  // Rim highlight
+  ctx.beginPath();
+  ctx.moveTo(x - r * 0.6, y - r * 0.7);
   ctx.lineTo(x, y - r);
-  ctx.lineTo(x + r * 0.85, y - r * 0.4);
-  ctx.strokeStyle = "rgba(255,255,255,0.5)";
-  ctx.lineWidth = 1.2;
+  ctx.lineTo(x + r * 0.6, y - r * 0.7);
+  ctx.strokeStyle = "rgba(255,255,255,0.7)";
+  ctx.lineWidth = 1.5;
   ctx.stroke();
 
   // Sparkle
   ctx.fillStyle = "rgba(255,255,255,0.95)";
-  ctx.beginPath(); ctx.arc(x - r * 0.32, y - r * 0.42, r * 0.25, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(x - r * 0.35, y - r * 0.45, r * 0.3, 0, Math.PI * 2); ctx.fill();
 }
 
 function smallGem(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, c1: string, c2: string) {
@@ -195,6 +209,10 @@ function drawBlade(
 
   bladePath(ctx, cx, top, bottom, bw);
   outline(ctx, outlineColor, 3.5);
+
+  // High-fidelity additions
+  addGritPx(ctx, cx - bw, top, bw * 2, bottom - top, 0.08);
+  rimLightPxUtil(ctx, cx - bw, top, bw * 2, bottom - top, 'rgba(255,255,255,0.15)');
 
   // Center ridge
   ctx.beginPath(); ctx.moveTo(cx, top + 4); ctx.lineTo(cx, bottom - 4);
@@ -1706,26 +1724,39 @@ function drawMaceHeadIron(ctx: CanvasRenderingContext2D) {
 function drawMaceHeadFire(ctx: CanvasRenderingContext2D) {
   const cx = 64, cy = 64, r = 30;
   // Flame aura
-  glow(ctx, cx, cy, r + 20, "rgba(255,80,0,0.3)");
+  glow(ctx, cx, cy, r + 25, "rgba(255,100,0,0.4)");
   // Ball
   ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2);
-  const bg = ctx.createRadialGradient(cx - 8, cy - 8, 2, cx, cy, r);
-  bg.addColorStop(0, "#ffcc00"); bg.addColorStop(0.4, "#ff6600"); bg.addColorStop(0.7, "#cc1100"); bg.addColorStop(1, "#4a0000");
-  ctx.shadowColor = "#ff5500"; ctx.shadowBlur = 18;
-  ctx.fillStyle = bg; ctx.fill(); ctx.shadowBlur = 0; outline(ctx, "#1a0800", 3);
-  // Crack lines with glow
-  ctx.strokeStyle = "#ffcc00"; ctx.lineWidth = 1.5;
-  for (const [sx, sy, ex, ey] of [[cx - 10, cy - 20, cx + 5, cy], [cx + 8, cy - 14, cx - 4, cy + 14], [cx - 8, cy + 8, cx + 12, cy + 18]]) {
+  const bg = ctx.createRadialGradient(cx - 10, cy - 10, 2, cx, cy, r);
+  bg.addColorStop(0, "#ffffff"); // White hot core
+  bg.addColorStop(0.2, "#ffcc00");
+  bg.addColorStop(0.5, "#ff6600");
+  bg.addColorStop(0.8, "#cc1100");
+  bg.addColorStop(1, "#330000"); // Deep char
+  ctx.shadowColor = "#ff5500"; ctx.shadowBlur = 24;
+  ctx.fillStyle = bg; ctx.fill(); ctx.shadowBlur = 0; outline(ctx, "#220800", 3.5);
+
+  // High-fidelity grit/noise
+  addGritPx(ctx, cx - r, cy - r, r * 2, r * 2, 0.15);
+  rimLightPxUtil(ctx, cx - r, cy - r, r * 2, r * 2, 'rgba(255,200,0,0.3)');
+
+  // Crack lines with intense glow
+  ctx.strokeStyle = "#ffffff"; ctx.lineWidth = 2;
+  for (const [sx, sy, ex, ey] of [[cx - 12, cy - 18, cx + 6, cy], [cx + 10, cy - 12, cx - 6, cy + 16], [cx - 10, cy + 10, cx + 14, cy + 20]]) {
     ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(ex, ey);
-    ctx.shadowColor = "#ffcc00"; ctx.shadowBlur = 5; ctx.stroke(); ctx.shadowBlur = 0;
+    ctx.shadowColor = "#ffcc00"; ctx.shadowBlur = 8; ctx.stroke(); ctx.shadowBlur = 0;
   }
-  // Flame wisps around ball
-  ctx.fillStyle = "#ff9900";
-  for (let i = 0; i < 5; i++) {
-    const a = (i / 5) * Math.PI * 2;
-    ctx.beginPath(); ctx.arc(cx + (r + 6) * Math.cos(a), cy + (r + 6) * Math.sin(a), 5, 0, Math.PI * 2); ctx.fill();
+  // Flame wisps around ball - More layered
+  for (let i = 0; i < 6; i++) {
+    const a = (i / 6) * Math.PI * 2;
+    const fx = cx + (r + 8) * Math.cos(a);
+    const fy = cy + (r + 8) * Math.sin(a);
+    ctx.beginPath(); ctx.arc(fx, fy, 6, 0, Math.PI * 2);
+    const fg = ctx.createRadialGradient(fx, fy, 0, fx, fy, 6);
+    fg.addColorStop(0, "#ffcc00"); fg.addColorStop(1, "transparent");
+    ctx.fillStyle = fg; ctx.fill();
   }
-  shine(ctx, cx - 14, cy - 14, cx - 4, cy - 10, 0.55);
+  shine(ctx, cx - 16, cy - 16, cx - 6, cy - 12, 0.7);
 }
 
 function drawMaceHeadVoid(ctx: CanvasRenderingContext2D) {

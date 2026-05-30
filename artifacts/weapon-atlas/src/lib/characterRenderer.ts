@@ -12,6 +12,8 @@
 //   - Clear class silhouettes readable at any scale
 //   - Outline only on outer edges; pixel clusters ≥2px (no isolated dots)
 
+import { shade as shadeUtil, addGritPx, rimLightPx, innerShadowPx, BAYER_4X4 } from './canvasUtils';
+
 export const CHAR_FRAME_W  = 48;
 export const CHAR_FRAME_H  = 64;
 export const CHAR_SHEET_COLS = 4;
@@ -59,17 +61,17 @@ export interface CharacterDef {
 // ─── COLOR PALETTES ───────────────────────────────────────────────────────────
 
 const sk = {
-  fair: '#F2C59E', tan: '#C8824A', dark: '#8B5020',
-  pale: '#F8EDE0', orc: '#5C8A50', dwarf: '#C27840',
+  fair: '#FFD8C0', tan: '#D08850', dark: '#904820',
+  pale: '#FFF5F0', orc: '#6A9A5A', dwarf: '#D08048',
 };
 const hr = {
-  brown: '#6B3000', black: '#1C1010', blonde: '#D8B828',
-  red: '#A82800', white: '#E8E8F0', silver: '#9898B8',
-  green: '#246020',
+  brown: '#7A3800', black: '#180C0C', blonde: '#E8C030',
+  red: '#B83000', white: '#F0F0F8', silver: '#A8A8C8',
+  green: '#2A6825',
 };
 const ey = {
-  brown: '#6C3818', blue: '#1858A0', green: '#287028',
-  purple: '#5828A0', gold: '#C09010', red: '#A01010',
+  brown: '#7C401C', blue: '#2060B0', green: '#308030',
+  purple: '#6830B0', gold: '#D0A015', red: '#B01010',
 };
 const AT = {
   leather: { b: '#8B6010', d: '#6B4808', l: '#AA7A16', blt: '#4A2E06' },
@@ -187,29 +189,31 @@ function pxOutline(ctx: CanvasRenderingContext2D, x: number, y: number, w: numbe
 }
 
 function shade(c: string, amt: number): string {
-  const n = parseInt(c.replace('#',''), 16);
-  const r = Math.max(0, Math.min(255, (n >> 16)         + amt));
-  const g = Math.max(0, Math.min(255, ((n >> 8) & 0xff) + amt));
-  const b = Math.max(0, Math.min(255, (n & 0xff)        + amt));
-  return '#' + [r, g, b].map(v => v.toString(16).padStart(2, '0')).join('');
+  return shadeUtil(c, amt);
 }
 
-// 4-tone shading palette for a base color
+// Helper to handle negative modulo correctly in JS
+const safeMod = (n: number, m: number) => ((n % m) + m) % m;
+
+// 4-tone shading palette for a base color - Increased contrast for Diablo 3 style
 function palette(c: string) {
   return {
-    hi:  shade(c,  42),   // specular highlight
-    l:   shade(c,  22),   // lit surface
+    hi:  shade(c,  52),   // specular highlight
+    l:   shade(c,  28),   // lit surface
     b:   c,               // base mid-tone
-    d:   shade(c, -26),   // shadow
-    vd:  shade(c, -48),   // deep shadow / outline
+    d:   shade(c, -32),   // shadow
+    vd:  shade(c, -56),   // deep shadow / outline
   };
 }
 
-// Dithered row: alternates between two colors (checkerboard, 1px row)
-function ditherRow(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, c1: string, c2: string, offset = 0) {
+// Dithered row: uses 4x4 Bayer matrix for smoother transitions
+function ditherRow(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, c1: string, c2: string, threshold = 8) {
   for (let i = 0; i < w; i++) {
-    ctx.fillStyle = ((i + offset) % 2 === 0) ? c1 : c2;
-    ctx.fillRect((x + i)|0, y|0, 1, 1);
+    const px = (x + i) | 0;
+    const py = y | 0;
+    const bayerValue = BAYER_4X4[safeMod(py, 4)][safeMod(px, 4)];
+    ctx.fillStyle = bayerValue < threshold ? c1 : c2;
+    ctx.fillRect(px, py, 1, 1);
   }
 }
 
@@ -268,6 +272,7 @@ export function drawHead(ctx: CanvasRenderingContext2D, cx: number, cy: number, 
 
     ctx.fillStyle = rowC;
     ctx.fillRect(px_, py_, pw_, 1);
+    addGritPx(ctx, px_, py_, pw_, 1, 0.08);
 
     // Left cheek highlight band (top-left lit)
     if (t > 0.25 && t < 0.60) {
@@ -285,6 +290,9 @@ export function drawHead(ctx: CanvasRenderingContext2D, cx: number, cy: number, 
     ctx.fillRect(px_ - 1, py_, 1, 1);
     ctx.fillRect(px_ + pw_, py_, 1, 1);
   }
+
+    rimLightPx(ctx, ox, oy, w, h, 'rgba(255,255,255,0.2)');
+    innerShadowPx(ctx, ox, oy, w, h, 'rgba(0,0,0,0.15)');
 
   // Top and bottom cap outline
   for (let row = 0; row < h; row++) {
@@ -666,6 +674,7 @@ export function drawTorsoArmor(
 
     ctx.fillStyle = rowC;
     ctx.fillRect(rx_, ry_, rw_, 1);
+    addGritPx(ctx, rx_, ry_, rw_, 1, 0.1);
 
     // Dithered transition rows
     if (row === 2) ditherRow(ctx, rx_, ry_, rw_, pal.l, pal.b);
@@ -763,6 +772,9 @@ export function drawTorsoArmor(
   px(ctx, tx - 2, beltY - 1, w + 4, 1, out);
   px(ctx, tx - 2, beltY + 4, w + 4, 1, out);
 
+  rimLightPx(ctx, tx, torsoY, w, h, 'rgba(255,255,255,0.25)');
+  innerShadowPx(ctx, tx, torsoY, w, h, 'rgba(0,0,0,0.2)');
+
   // Torso outer outline
   pxOutline(ctx, tx, torsoY, w, h, out);
 }
@@ -796,6 +808,7 @@ function drawMageRobe(
     else               rowC = pal.d;
     ctx.fillStyle = rowC;
     ctx.fillRect(rx_, robeTopY + row, rw_, 1);
+    addGritPx(ctx, rx_, robeTopY + row, rw_, 1, 0.12);
     if (row === 2) ditherRow(ctx, rx_, robeTopY + row, rw_, pal.l, pal.b);
     if (row === 9) ditherRow(ctx, rx_, robeTopY + row, rw_, pal.b, pal.d);
     // Right shadow
@@ -912,6 +925,7 @@ export function drawArms(
     else               c = pal.d;
     ctx.fillStyle = c;
     ctx.fillRect(ax, armY + row, armW, 1);
+    addGritPx(ctx, ax, armY + row, armW, 1, 0.08);
   }
   // Left-lit vertical edge
   ctx.fillStyle = pal.l;
@@ -930,6 +944,7 @@ export function drawArms(
   px(ctx, ax, handY, armW, 1, skinPal.l);        // wrist highlight
   px(ctx, ax + armW - 1, handY + 1, 1, 2, skinPal.d); // wrist shadow
 
+  rimLightPx(ctx, ax, armY, armW, armH, 'rgba(255,255,255,0.2)');
   // Outline
   pxOutline(ctx, ax, armY, armW, armH + 4, pal.vd);
 }
@@ -959,6 +974,7 @@ export function drawLegs(
       else               c = pal.vd; // back of knee shadow
       ctx.fillStyle = c;
       ctx.fillRect(lx, ly + row, legW, 1);
+      addGritPx(ctx, lx, ly + row, legW, 1, 0.1);
     }
     // Knee cap highlight (1/3 down)
     const kneeRow = Math.round(legH * 0.28);
@@ -980,6 +996,7 @@ export function drawLegs(
     // Boot toe (extended, adds depth)
     px(ctx, lx - 2, ly + legH + 4, legW + 4, 3, shade(bootC, -6));
     px(ctx, lx - 2, ly + legH + 4, legW + 4, 1, bootPal.l);
+    rimLightPx(ctx, lx, ly, legW, legH, 'rgba(255,255,255,0.15)');
     // Outer outline
     pxOutline(ctx, lx, ly, legW, legH, pal.vd);
     px(ctx, lx - 1, ly + legH, 1, 7, bootPal.vd);      // boot left
