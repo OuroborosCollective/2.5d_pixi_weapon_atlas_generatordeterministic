@@ -12,6 +12,8 @@
 //   - Clear class silhouettes readable at any scale
 //   - Outline only on outer edges; pixel clusters ≥2px (no isolated dots)
 
+import { shade as shadeUtil, addGritPx, rimLightPx, innerShadowPx, applyBevel } from "./canvasUtils";
+
 export const CHAR_FRAME_W  = 48;
 export const CHAR_FRAME_H  = 64;
 export const CHAR_SHEET_COLS = 4;
@@ -187,21 +189,17 @@ function pxOutline(ctx: CanvasRenderingContext2D, x: number, y: number, w: numbe
 }
 
 function shade(c: string, amt: number): string {
-  const n = parseInt(c.replace('#',''), 16);
-  const r = Math.max(0, Math.min(255, (n >> 16)         + amt));
-  const g = Math.max(0, Math.min(255, ((n >> 8) & 0xff) + amt));
-  const b = Math.max(0, Math.min(255, (n & 0xff)        + amt));
-  return '#' + [r, g, b].map(v => v.toString(16).padStart(2, '0')).join('');
+  return shadeUtil(c, amt);
 }
 
 // 4-tone shading palette for a base color
 function palette(c: string) {
   return {
-    hi:  shade(c,  42),   // specular highlight
-    l:   shade(c,  22),   // lit surface
+    hi:  shade(c,  48),   // specular highlight (increased for contrast)
+    l:   shade(c,  26),   // lit surface
     b:   c,               // base mid-tone
-    d:   shade(c, -26),   // shadow
-    vd:  shade(c, -48),   // deep shadow / outline
+    d:   shade(c, -32),   // shadow (deeper)
+    vd:  shade(c, -54),   // deep shadow / outline
   };
 }
 
@@ -765,6 +763,11 @@ export function drawTorsoArmor(
 
   // Torso outer outline
   pxOutline(ctx, tx, torsoY, w, h, out);
+
+  // ── High-Fidelity Enhancements ──
+  addGritPx(ctx, tx, torsoY, w, h, 0.08, 0.12);
+  rimLightPx(ctx, tx, torsoY, 4, 4); // Shoulder rim
+  rimLightPx(ctx, tx + w - 4, torsoY, 4, 4);
 }
 
 // ─── BODY: MAGE ROBE (extra wide, with fold shading) ─────────────────────────
@@ -932,6 +935,10 @@ export function drawArms(
 
   // Outline
   pxOutline(ctx, ax, armY, armW, armH + 4, pal.vd);
+
+  // High-Fidelity Enhancements
+  rimLightPx(ctx, ax, armY, armW, 2);
+  innerShadowPx(ctx, ax, armY, armW, armH + 4);
 }
 
 // ─── BODY: LEGS ──────────────────────────────────────────────────────────────
@@ -987,6 +994,11 @@ export function drawLegs(
     px(ctx, lx - 2, ly + legH + 4, 1, 3, bootPal.vd);   // toe left
     px(ctx, lx + legW + 2, ly + legH + 4, 1, 3, bootPal.vd); // toe right
     px(ctx, lx - 2, ly + legH + 7, legW + 5, 1, bootPal.vd); // toe bottom
+
+    // High-Fidelity Enhancements
+    rimLightPx(ctx, lx, ly, legW, 2);
+    innerShadowPx(ctx, lx, ly, legW, legH + 7);
+    addGritPx(ctx, lx, ly, legW, legH, 0.05, 0.1);
   };
 
   // Left leg (cx-legW-3 so there's a visible gap between legs)
