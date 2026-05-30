@@ -27,6 +27,42 @@ function rimLight(ctx: CanvasRenderingContext2D, color = "rgba(255,255,255,0.4)"
   ctx.strokeStyle = color;
   ctx.lineWidth = lw;
   ctx.lineJoin = "round";
+  ctx.globalCompositeOperation = "screen";
+  ctx.stroke();
+  ctx.restore();
+}
+
+function innerShadow(ctx: CanvasRenderingContext2D, color = "rgba(0,0,0,0.5)", blur = 8) {
+  ctx.save();
+  ctx.clip();
+  ctx.shadowColor = color;
+  ctx.shadowBlur = blur;
+  ctx.shadowOffsetX = 0;
+  ctx.shadowOffsetY = 2;
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 2;
+  ctx.globalCompositeOperation = "multiply";
+  ctx.stroke();
+  ctx.restore();
+}
+
+function innerGlow(ctx: CanvasRenderingContext2D, color = "rgba(255,255,255,0.3)", blur = 8) {
+  ctx.save();
+  ctx.clip();
+  ctx.shadowColor = color;
+  ctx.shadowBlur = blur;
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 2;
+  ctx.globalCompositeOperation = "screen";
+  ctx.stroke();
+  ctx.restore();
+}
+
+function bevel(ctx: CanvasRenderingContext2D, color = "rgba(255,255,255,0.25)", lw = 1.5) {
+  ctx.save();
+  ctx.strokeStyle = color;
+  ctx.lineWidth = lw;
+  ctx.globalCompositeOperation = "screen";
   ctx.stroke();
   ctx.restore();
 }
@@ -73,56 +109,77 @@ function shine(ctx: CanvasRenderingContext2D, x1: number, y1: number, x2: number
 
 function gem(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, c1: string, c2: string) {
   ctx.save();
-  // Deep Glow
-  const glow = ctx.createRadialGradient(x, y, 0, x, y, r * 3);
-  glow.addColorStop(0, c1 + "aa");
-  glow.addColorStop(1, "transparent");
-  ctx.fillStyle = glow;
+  // 1. Outer Bloom
+  const bloom = ctx.createRadialGradient(x, y, 0, x, y, r * 4);
+  bloom.addColorStop(0, c1 + "66");
+  bloom.addColorStop(1, "transparent");
+  ctx.fillStyle = bloom;
   ctx.globalCompositeOperation = "screen";
-  ctx.beginPath(); ctx.arc(x, y, r * 3, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(x, y, r * 4, 0, Math.PI * 2); ctx.fill();
+
+  // 2. Body — faceted
+  ctx.beginPath();
+  for (let i = 0; i < 6; i++) {
+    const a = (i / 6) * Math.PI * 2 - Math.PI / 2;
+    const px = x + r * Math.cos(a), py = y + r * Math.sin(a);
+    i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+  }
+  ctx.closePath();
+  const g = ctx.createRadialGradient(x - r * 0.3, y - r * 0.4, 0, x, y, r * 1.5);
+  g.addColorStop(0, "#ffffff");
+  g.addColorStop(0.2, c1);
+  g.addColorStop(0.8, c2);
+  g.addColorStop(1, "#000");
+  ctx.fillStyle = g; ctx.fill();
+  ctx.strokeStyle = "rgba(0,0,0,0.85)";
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  // 3. Internal Refraction
+  ctx.globalCompositeOperation = "screen";
+  ctx.beginPath();
+  ctx.moveTo(x - r * 0.6, y - r * 0.3);
+  ctx.lineTo(x, y - r * 0.8);
+  ctx.lineTo(x + r * 0.6, y - r * 0.3);
+  ctx.strokeStyle = "rgba(255,255,255,0.4)";
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.moveTo(x - r * 0.7, y + r * 0.2);
+  ctx.lineTo(x, y + r * 0.7);
+  ctx.lineTo(x + r * 0.7, y + r * 0.2);
+  ctx.stroke();
+
+  // 4. Primary Sparkle
+  ctx.globalCompositeOperation = "source-over";
+  ctx.fillStyle = "#fff";
+  ctx.beginPath(); ctx.arc(x - r * 0.35, y - r * 0.4, r * 0.25, 0, Math.PI * 2); ctx.fill();
+
+  // 5. Specular Glint
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(-Math.PI / 4);
+  ctx.fillStyle = "rgba(255,255,255,0.8)";
+  ctx.fillRect(-r * 0.1, -r * 0.8, r * 0.2, r * 0.4);
   ctx.restore();
 
-  // Body — hexagonal facet
-  ctx.beginPath();
-  ctx.moveTo(x, y - r);
-  ctx.lineTo(x + r * 0.85, y - r * 0.4);
-  ctx.lineTo(x + r * 0.85, y + r * 0.4);
-  ctx.lineTo(x, y + r);
-  ctx.lineTo(x - r * 0.85, y + r * 0.4);
-  ctx.lineTo(x - r * 0.85, y - r * 0.4);
-  ctx.closePath();
-  const g = ctx.createRadialGradient(x - r * 0.3, y - r * 0.4, 0, x, y, r * 1.2);
-  g.addColorStop(0, "#ffffff");
-  g.addColorStop(0.15, c1);
-  g.addColorStop(1, c2);
-  ctx.fillStyle = g;
-  ctx.fill();
-  ctx.strokeStyle = "rgba(0,0,0,0.8)";
-  ctx.lineWidth = 1.8;
-  ctx.stroke();
-
-  // Internal facets
-  ctx.beginPath();
-  ctx.moveTo(x - r * 0.85, y - r * 0.4);
-  ctx.lineTo(x, y - r);
-  ctx.lineTo(x + r * 0.85, y - r * 0.4);
-  ctx.strokeStyle = "rgba(255,255,255,0.5)";
-  ctx.lineWidth = 1.2;
-  ctx.stroke();
-
-  // Sparkle
-  ctx.fillStyle = "rgba(255,255,255,0.95)";
-  ctx.beginPath(); ctx.arc(x - r * 0.32, y - r * 0.42, r * 0.25, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
 }
 
 function smallGem(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, c1: string, c2: string) {
   ctx.save();
   ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2);
-  const g = ctx.createRadialGradient(x - r * 0.3, y - r * 0.3, 0, x, y, r);
-  g.addColorStop(0, "#fff"); g.addColorStop(0.3, c1); g.addColorStop(1, c2);
+  const g = ctx.createRadialGradient(x - r * 0.4, y - r * 0.4, 0, x, y, r * 1.2);
+  g.addColorStop(0, "#fff");
+  g.addColorStop(0.2, c1);
+  g.addColorStop(1, c2);
   ctx.fillStyle = g; ctx.fill();
-  ctx.strokeStyle = "rgba(0,0,0,0.7)"; ctx.lineWidth = 1.2; ctx.stroke();
-  ctx.fillStyle = "rgba(255,255,255,0.9)";
+  ctx.strokeStyle = "rgba(0,0,0,0.8)"; ctx.lineWidth = 1.2; ctx.stroke();
+
+  // High contrast core
+  ctx.globalCompositeOperation = "screen";
+  ctx.fillStyle = "rgba(255,255,255,0.5)";
   ctx.beginPath(); ctx.arc(x - r * 0.3, y - r * 0.3, r * 0.3, 0, Math.PI * 2); ctx.fill();
   ctx.restore();
 }
@@ -185,12 +242,15 @@ function drawBlade(
   ctx.beginPath(); ctx.moveTo(cx, top); ctx.lineTo(cx + bw, top + (bottom - top) * 0.18); ctx.lineTo(cx, bottom); ctx.closePath();
   ctx.fill(); ctx.restore();
 
-  // Painterly Enhancements
+  // Volume & Depth
   ctx.save();
   bladePath(ctx, cx, top, bottom, bw);
-  ctx.clip();
-  rimLight(ctx, "rgba(255,255,255,0.25)", 4);
-  addNoise(ctx, 0.04);
+  innerShadow(ctx, "rgba(0,0,0,0.4)", 12);
+  innerGlow(ctx, "rgba(255,255,255,0.15)", 8);
+  bevel(ctx, "rgba(255,255,255,0.3)", 2);
+  rimLight(ctx, "rgba(255,255,255,0.3)", 4);
+  addNoise(ctx, 0.05);
+  addGrit(ctx, 0.08);
   ctx.restore();
 
   bladePath(ctx, cx, top, bottom, bw);
@@ -198,7 +258,8 @@ function drawBlade(
 
   // Center ridge
   ctx.beginPath(); ctx.moveTo(cx, top + 4); ctx.lineTo(cx, bottom - 4);
-  ctx.strokeStyle = "rgba(255,255,255,0.55)"; ctx.lineWidth = 1.8; ctx.stroke();
+  ctx.strokeStyle = "rgba(255,255,255,0.6)"; ctx.lineWidth = 1.5; ctx.stroke();
+  ctx.strokeStyle = "rgba(0,0,0,0.2)"; ctx.lineWidth = 3; ctx.stroke();
 }
 
 // ─── SWORD BLADES ────────────────────────────────────────────────────────────
@@ -279,9 +340,11 @@ function drawSwordBladeVoid(ctx: CanvasRenderingContext2D) {
   ctx.fill(); ctx.shadowBlur = 0;
 
   ctx.save();
-  voidPath(); ctx.clip();
-  rimLight(ctx, "rgba(180,100,255,0.3)", 4);
-  addNoise(ctx, 0.06);
+  voidPath();
+  innerShadow(ctx, "rgba(0,0,0,0.6)", 15);
+  innerGlow(ctx, "rgba(180,100,255,0.3)", 10);
+  rimLight(ctx, "rgba(200,150,255,0.4)", 4);
+  addNoise(ctx, 0.08);
   ctx.restore();
 
   voidPath();
@@ -323,9 +386,13 @@ function drawSwordBladeRoyal(ctx: CanvasRenderingContext2D) {
   ctx.fillStyle = lg; ctx.fill();
 
   ctx.save();
-  leafPath(); ctx.clip();
+  leafPath();
+  innerShadow(ctx, "rgba(60,30,0,0.5)", 10);
+  innerGlow(ctx, "rgba(255,255,255,0.2)", 8);
+  bevel(ctx, "rgba(255,255,255,0.4)", 2.5);
   rimLight(ctx, "rgba(255,255,255,0.3)", 5);
-  addNoise(ctx, 0.03);
+  addNoise(ctx, 0.04);
+  addGrit(ctx, 0.06);
   ctx.restore();
 
   leafPath();
@@ -500,22 +567,32 @@ function drawGuardOrnateGold(ctx: CanvasRenderingContext2D) {
   const lg = ctx.createLinearGradient(0, cy - 16, 0, cy + 10);
   lg.addColorStop(0, "#fff176"); lg.addColorStop(0.5, "#f9a825"); lg.addColorStop(1, "#bf6c00");
 
+  const wingPath = () => {
+    ctx.beginPath();
+    ctx.moveTo(cx - 6, cy - 8);
+    ctx.bezierCurveTo(cx - 22, cy - 30, cx - 52, cy - 22, cx - 50, cy - 6);
+    ctx.bezierCurveTo(cx - 48, cy + 6, cx - 28, cy + 8, cx - 6, cy + 8);
+    ctx.closePath();
+  };
+
   // Left wing
-  ctx.beginPath();
-  ctx.moveTo(cx - 6, cy - 8);
-  ctx.bezierCurveTo(cx - 22, cy - 30, cx - 52, cy - 22, cx - 50, cy - 6);
-  ctx.bezierCurveTo(cx - 48, cy + 6, cx - 28, cy + 8, cx - 6, cy + 8);
-  ctx.closePath();
-  ctx.fillStyle = lg; ctx.fill(); outline(ctx, "#1a0a00", 3);
+  wingPath();
+  ctx.fillStyle = lg; ctx.fill();
+  ctx.save();
+  innerShadow(ctx, "rgba(80,40,0,0.5)", 10);
+  innerGlow(ctx, "rgba(255,255,255,0.2)", 6);
+  rimLight(ctx, "rgba(255,255,255,0.4)", 3);
+  ctx.restore();
+  wingPath(); outline(ctx, "#1a0a00", 3);
 
   // Right wing (mirror)
   ctx.save(); ctx.translate(cx * 2, 0); ctx.scale(-1, 1);
-  ctx.beginPath();
-  ctx.moveTo(cx - 6, cy - 8);
-  ctx.bezierCurveTo(cx - 22, cy - 30, cx - 52, cy - 22, cx - 50, cy - 6);
-  ctx.bezierCurveTo(cx - 48, cy + 6, cx - 28, cy + 8, cx - 6, cy + 8);
-  ctx.closePath();
-  ctx.fillStyle = lg; ctx.fill(); outline(ctx, "#1a0a00", 3); ctx.restore();
+  wingPath();
+  ctx.fillStyle = lg; ctx.fill();
+  innerShadow(ctx, "rgba(80,40,0,0.5)", 10);
+  innerGlow(ctx, "rgba(255,255,255,0.2)", 6);
+  rimLight(ctx, "rgba(255,255,255,0.4)", 3);
+  wingPath(); outline(ctx, "#1a0a00", 3); ctx.restore();
 
   // Center collar
   ctx.beginPath(); ctx.ellipse(cx, cy, 10, 10, 0, 0, Math.PI * 2);
@@ -535,7 +612,9 @@ function drawGuardCrown(ctx: CanvasRenderingContext2D) {
 
   // Base bar
   ctx.beginPath(); ctx.roundRect(cx - 44, cy - 8, 88, 18, 4);
-  ctx.fillStyle = lg; ctx.fill(); outline(ctx, "#001133", 3);
+  ctx.fillStyle = lg; ctx.fill();
+  ctx.save(); innerShadow(ctx, "rgba(0,10,40,0.6)", 12); innerGlow(ctx, "rgba(100,150,255,0.2)", 8); ctx.restore();
+  outline(ctx, "#001133", 3);
 
   // Gold border
   ctx.beginPath(); ctx.roundRect(cx - 44, cy - 8, 88, 18, 4);
@@ -544,7 +623,9 @@ function drawGuardCrown(ctx: CanvasRenderingContext2D) {
   // Three prongs
   for (const [px, ph] of [[cx - 28, 24], [cx, 34], [cx + 28, 24]]) {
     ctx.beginPath(); ctx.roundRect(px - 7, cy - 8 - ph, 14, ph + 4, 3);
-    ctx.fillStyle = lg; ctx.fill(); outline(ctx, "#001133", 2.5);
+    ctx.fillStyle = lg; ctx.fill();
+    ctx.save(); innerShadow(ctx, "rgba(0,10,40,0.6)", 10); bevel(ctx, "rgba(255,255,255,0.2)", 1.5); ctx.restore();
+    outline(ctx, "#001133", 2.5);
     ctx.beginPath(); ctx.roundRect(px - 7, cy - 8 - ph, 14, ph + 4, 3);
     ctx.strokeStyle = "#f9c825"; ctx.lineWidth = 1.5; ctx.stroke();
   }
@@ -584,25 +665,33 @@ function drawGuardVoidTwist(ctx: CanvasRenderingContext2D) {
   const lg = ctx.createLinearGradient(cx - 50, 0, cx + 50, 0);
   lg.addColorStop(0, "#0d0020"); lg.addColorStop(0.5, "#5a0a9a"); lg.addColorStop(1, "#0d0020");
 
+  const hornPath = () => {
+    ctx.beginPath();
+    ctx.moveTo(cx - 8, cy - 6);
+    ctx.bezierCurveTo(cx - 30, cy - 10, cx - 52, cy, cx - 48, cy + 22);
+    ctx.bezierCurveTo(cx - 46, cy + 32, cx - 34, cy + 28, cx - 28, cy + 18);
+    ctx.bezierCurveTo(cx - 22, cy + 8, cx - 14, cy + 4, cx - 8, cy + 6);
+    ctx.closePath();
+  };
+
   // Left horn curling down
-  ctx.beginPath();
-  ctx.moveTo(cx - 8, cy - 6);
-  ctx.bezierCurveTo(cx - 30, cy - 10, cx - 52, cy, cx - 48, cy + 22);
-  ctx.bezierCurveTo(cx - 46, cy + 32, cx - 34, cy + 28, cx - 28, cy + 18);
-  ctx.bezierCurveTo(cx - 22, cy + 8, cx - 14, cy + 4, cx - 8, cy + 6);
-  ctx.closePath();
-  ctx.shadowColor = "#b060ff"; ctx.shadowBlur = 10;
-  ctx.fillStyle = lg; ctx.fill(); ctx.shadowBlur = 0; outline(ctx, "#0d0014", 3);
+  hornPath();
+  ctx.save();
+  ctx.shadowColor = "#b060ff"; ctx.shadowBlur = 15;
+  ctx.fillStyle = lg; ctx.fill();
+  innerShadow(ctx, "rgba(0,0,0,0.7)", 12);
+  innerGlow(ctx, "rgba(180,100,255,0.4)", 8);
+  ctx.restore();
+  hornPath(); outline(ctx, "#0d0014", 3);
 
   // Right horn (mirror)
   ctx.save(); ctx.translate(cx * 2, 0); ctx.scale(-1, 1);
-  ctx.beginPath();
-  ctx.moveTo(cx - 8, cy - 6);
-  ctx.bezierCurveTo(cx - 30, cy - 10, cx - 52, cy, cx - 48, cy + 22);
-  ctx.bezierCurveTo(cx - 46, cy + 32, cx - 34, cy + 28, cx - 28, cy + 18);
-  ctx.bezierCurveTo(cx - 22, cy + 8, cx - 14, cy + 4, cx - 8, cy + 6);
-  ctx.closePath();
-  ctx.fillStyle = lg; ctx.fill(); outline(ctx, "#0d0014", 3); ctx.restore();
+  hornPath();
+  ctx.shadowColor = "#b060ff"; ctx.shadowBlur = 15;
+  ctx.fillStyle = lg; ctx.fill();
+  innerShadow(ctx, "rgba(0,0,0,0.7)", 12);
+  innerGlow(ctx, "rgba(180,100,255,0.4)", 8);
+  hornPath(); outline(ctx, "#0d0014", 3); ctx.restore();
 
   // Central void eye
   ctx.beginPath(); ctx.ellipse(cx, cy, 9, 9, 0, 0, Math.PI * 2);

@@ -59,23 +59,23 @@ export interface CharacterDef {
 // ─── COLOR PALETTES ───────────────────────────────────────────────────────────
 
 const sk = {
-  fair: '#F2C59E', tan: '#C8824A', dark: '#8B5020',
-  pale: '#F8EDE0', orc: '#5C8A50', dwarf: '#C27840',
+  fair: '#F5CCA0', tan: '#D0854D', dark: '#8B5020',
+  pale: '#FEF0E5', orc: '#609055', dwarf: '#C57D42',
 };
 const hr = {
-  brown: '#6B3000', black: '#1C1010', blonde: '#D8B828',
-  red: '#A82800', white: '#E8E8F0', silver: '#9898B8',
-  green: '#246020',
+  brown: '#6B3000', black: '#120808', blonde: '#DFC028',
+  red: '#B02500', white: '#F0F0F8', silver: '#A0A0C0',
+  green: '#206518',
 };
 const ey = {
-  brown: '#6C3818', blue: '#1858A0', green: '#287028',
-  purple: '#5828A0', gold: '#C09010', red: '#A01010',
+  brown: '#703A1A', blue: '#1560B0', green: '#257525',
+  purple: '#6025B0', gold: '#C59510', red: '#B01010',
 };
 const AT = {
-  leather: { b: '#8B6010', d: '#6B4808', l: '#AA7A16', blt: '#4A2E06' },
-  iron:    { b: '#586070', d: '#404858', l: '#7090A8', blt: '#303848' },
-  steel:   { b: '#8CA8C0', d: '#6080A0', l: '#B8CED8', blt: '#486070' },
-  mythril: { b: '#50A0C8', d: '#3070B0', l: '#80C0E8', blt: '#185878' },
+  leather: { b: '#956512', d: '#654205', l: '#B58518', blt: '#452A04' },
+  iron:    { b: '#5C6578', d: '#354050', l: '#7598B0', blt: '#283242' },
+  steel:   { b: '#95B0CD', d: '#557895', l: '#C2D8E5', blt: '#405868' },
+  mythril: { b: '#55A8D5', d: '#2868A8', l: '#85C8F5', blt: '#155570' },
 };
 
 // ─── CHARACTER PRESETS ────────────────────────────────────────────────────────
@@ -213,6 +213,33 @@ function ditherRow(ctx: CanvasRenderingContext2D, x: number, y: number, w: numbe
   }
 }
 
+function rimLightPx(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, color = "rgba(255,255,255,0.25)") {
+  ctx.save();
+  ctx.fillStyle = color;
+  ctx.fillRect(x, y, 1, h); // left
+  ctx.fillRect(x, y, w, 1); // top
+  ctx.restore();
+}
+
+function innerShadowPx(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, color = "rgba(0,0,0,0.2)") {
+  ctx.save();
+  ctx.fillStyle = color;
+  ctx.fillRect(x + w - 1, y + 1, 1, h - 1); // right
+  ctx.fillRect(x + 1, y + h - 1, w - 1, 1); // bottom
+  ctx.restore();
+}
+
+function addGritPx(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, opacity = 0.1) {
+  ctx.save();
+  for (let i = 0; i < (w * h) / 4; i++) {
+    const gx = x + Math.floor(Math.random() * w);
+    const gy = y + Math.floor(Math.random() * h);
+    ctx.fillStyle = `rgba(0,0,0,${opacity})`;
+    ctx.fillRect(gx, gy, 1, 1);
+  }
+  ctx.restore();
+}
+
 // Public API helpers
 export function drawPixelRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, color: string) {
   px(ctx, x, y, w, h, color);
@@ -268,6 +295,10 @@ export function drawHead(ctx: CanvasRenderingContext2D, cx: number, cy: number, 
 
     ctx.fillStyle = rowC;
     ctx.fillRect(px_, py_, pw_, 1);
+
+    // Volume Enhancement
+    rimLightPx(ctx, px_, py_, 1, 1, "rgba(255,255,255,0.15)");
+    innerShadowPx(ctx, px_, py_, pw_, 1, "rgba(0,0,0,0.1)");
 
     // Left cheek highlight band (top-left lit)
     if (t > 0.25 && t < 0.60) {
@@ -666,6 +697,11 @@ export function drawTorsoArmor(
 
     ctx.fillStyle = rowC;
     ctx.fillRect(rx_, ry_, rw_, 1);
+
+    // 2.5D Depth
+    rimLightPx(ctx, rx_, ry_, rw_, 1, "rgba(255,255,255,0.1)");
+    innerShadowPx(ctx, rx_, ry_, rw_, 1, "rgba(0,0,0,0.15)");
+    if (row % 3 === 0) addGritPx(ctx, rx_, ry_, rw_, 1, 0.05);
 
     // Dithered transition rows
     if (row === 2) ditherRow(ctx, rx_, ry_, rw_, pal.l, pal.b);
