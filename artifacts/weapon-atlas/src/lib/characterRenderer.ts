@@ -197,11 +197,11 @@ function shade(c: string, amt: number): string {
 // 4-tone shading palette for a base color
 function palette(c: string) {
   return {
-    hi:  shade(c,  42),   // specular highlight
-    l:   shade(c,  22),   // lit surface
+    hi:  shade(c,  54),   // specular highlight (increased for depth)
+    l:   shade(c,  30),   // lit surface
     b:   c,               // base mid-tone
-    d:   shade(c, -26),   // shadow
-    vd:  shade(c, -48),   // deep shadow / outline
+    d:   shade(c, -34),   // shadow
+    vd:  shade(c, -60),   // deep shadow / outline
   };
 }
 
@@ -1753,6 +1753,40 @@ export interface RenderFrameOptions {
   contactShadow?: boolean;
 }
 
+/**
+ * Pixel-based directional rim lighting and inner shadow post-process.
+ * Populates silhouettes and adds depth volume.
+ */
+function applyPostEffects(ctx: CanvasRenderingContext2D, w: number, h: number) {
+  const idata = ctx.getImageData(0, 0, w, h);
+  const d = idata.data;
+  const copy = new Uint8ClampedArray(d);
+
+  for (let y = 1; y < h - 1; y++) {
+    for (let x = 1; x < w - 1; x++) {
+      const i = (y * w + x) * 4;
+      if (copy[i + 3] < 200) continue; // Skip semi-transparent/shadows
+
+      // Rim Light (Top-Left edges) - Screen blend approximation
+      const tl = ((y - 1) * w + (x - 1)) * 4;
+      if (copy[tl + 3] < 100) {
+        d[i] = Math.min(255, d[i] + 45);
+        d[i + 1] = Math.min(255, d[i + 1] + 45);
+        d[i + 2] = Math.min(255, d[i + 2] + 50);
+      }
+
+      // Inner Shadow (Bottom-Right edges) - Multiply blend approximation
+      const br = ((y + 1) * w + (x + 1)) * 4;
+      if (copy[br + 3] < 100) {
+        d[i] = Math.max(0, d[i] - 35);
+        d[i + 1] = Math.max(0, d[i + 1] - 35);
+        d[i + 2] = Math.max(0, d[i + 2] - 30);
+      }
+    }
+  }
+  ctx.putImageData(idata, 0, 0);
+}
+
 export function renderCharacterFrame(
   char: CharacterDef,
   anim: AnimType,
@@ -1785,6 +1819,9 @@ export function renderCharacterFrame(
     case 'death':      drawDeath(ctx, char, fi); break;
     default:           drawSouth(ctx, char, WALK_PHASES[0], bob, 'idle', fi); break;
   }
+
+  // Apply high-fidelity post-processing
+  applyPostEffects(ctx, CHAR_FRAME_W, CHAR_FRAME_H);
 
   _skipContactShadow = false;
   return canvas;

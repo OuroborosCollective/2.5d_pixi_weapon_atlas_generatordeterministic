@@ -22,12 +22,42 @@ function outline(ctx: CanvasRenderingContext2D, color = "#0d0d0d", lw = 3.5) {
   ctx.restore();
 }
 
-function rimLight(ctx: CanvasRenderingContext2D, color = "rgba(255,255,255,0.4)", lw = 2.5) {
+function rimLight(ctx: CanvasRenderingContext2D, color = "rgba(255,255,255,0.35)", lw = 2.5) {
   ctx.save();
+  ctx.globalCompositeOperation = "screen";
   ctx.strokeStyle = color;
   ctx.lineWidth = lw;
   ctx.lineJoin = "round";
   ctx.stroke();
+  ctx.restore();
+}
+
+function innerShadow(ctx: CanvasRenderingContext2D, color = "rgba(0,0,0,0.25)", lw = 2.0) {
+  ctx.save();
+  ctx.globalCompositeOperation = "multiply";
+  ctx.strokeStyle = color;
+  ctx.lineWidth = lw;
+  ctx.lineJoin = "round";
+  ctx.stroke();
+  ctx.restore();
+}
+
+function bevel(ctx: CanvasRenderingContext2D) {
+  ctx.save();
+  rimLight(ctx, "rgba(255,255,255,0.2)", 4);
+  innerShadow(ctx, "rgba(0,0,0,0.15)", 5);
+  ctx.restore();
+}
+
+function gloss(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number) {
+  ctx.save();
+  const g = ctx.createLinearGradient(x, y, x + w, y + h);
+  g.addColorStop(0, "rgba(255,255,255,0.12)");
+  g.addColorStop(0.5, "rgba(255,255,255,0)");
+  g.addColorStop(1, "rgba(255,255,255,0.08)");
+  ctx.fillStyle = g;
+  ctx.globalCompositeOperation = "screen";
+  ctx.fillRect(x, y, w, h);
   ctx.restore();
 }
 
@@ -83,36 +113,49 @@ function gem(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, c1:
   ctx.restore();
 
   // Body — hexagonal facet
-  ctx.beginPath();
-  ctx.moveTo(x, y - r);
-  ctx.lineTo(x + r * 0.85, y - r * 0.4);
-  ctx.lineTo(x + r * 0.85, y + r * 0.4);
-  ctx.lineTo(x, y + r);
-  ctx.lineTo(x - r * 0.85, y + r * 0.4);
-  ctx.lineTo(x - r * 0.85, y - r * 0.4);
-  ctx.closePath();
+  const drawHex = () => {
+    ctx.beginPath();
+    ctx.moveTo(x, y - r);
+    ctx.lineTo(x + r * 0.85, y - r * 0.4);
+    ctx.lineTo(x + r * 0.85, y + r * 0.4);
+    ctx.lineTo(x, y + r);
+    ctx.lineTo(x - r * 0.85, y + r * 0.4);
+    ctx.lineTo(x - r * 0.85, y - r * 0.4);
+    ctx.closePath();
+  };
+
+  drawHex();
   const g = ctx.createRadialGradient(x - r * 0.3, y - r * 0.4, 0, x, y, r * 1.2);
   g.addColorStop(0, "#ffffff");
   g.addColorStop(0.15, c1);
-  g.addColorStop(1, c2);
+  g.addColorStop(0.85, c2);
+  g.addColorStop(1, "#000000");
   ctx.fillStyle = g;
   ctx.fill();
-  ctx.strokeStyle = "rgba(0,0,0,0.8)";
-  ctx.lineWidth = 1.8;
+
+  // High contrast stroke
+  ctx.strokeStyle = "rgba(0,0,0,0.9)";
+  ctx.lineWidth = 2.0;
   ctx.stroke();
 
-  // Internal facets
+  // Internal facets - more complex
+  ctx.save();
+  ctx.globalCompositeOperation = "screen";
+  ctx.strokeStyle = "rgba(255,255,255,0.4)";
+  ctx.lineWidth = 1.0;
   ctx.beginPath();
-  ctx.moveTo(x - r * 0.85, y - r * 0.4);
-  ctx.lineTo(x, y - r);
-  ctx.lineTo(x + r * 0.85, y - r * 0.4);
-  ctx.strokeStyle = "rgba(255,255,255,0.5)";
-  ctx.lineWidth = 1.2;
+  // Star facets
+  for (let i = 0; i < 6; i++) {
+    const a = (i / 6) * Math.PI * 2;
+    ctx.moveTo(x, y);
+    ctx.lineTo(x + r * 0.85 * Math.cos(a), y + r * 0.85 * Math.sin(a));
+  }
   ctx.stroke();
+  ctx.restore();
 
   // Sparkle
-  ctx.fillStyle = "rgba(255,255,255,0.95)";
-  ctx.beginPath(); ctx.arc(x - r * 0.32, y - r * 0.42, r * 0.25, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = "rgba(255,255,255,0.98)";
+  ctx.beginPath(); ctx.arc(x - r * 0.35, y - r * 0.45, r * 0.3, 0, Math.PI * 2); ctx.fill();
 }
 
 function smallGem(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, c1: string, c2: string) {
@@ -185,20 +228,27 @@ function drawBlade(
   ctx.beginPath(); ctx.moveTo(cx, top); ctx.lineTo(cx + bw, top + (bottom - top) * 0.18); ctx.lineTo(cx, bottom); ctx.closePath();
   ctx.fill(); ctx.restore();
 
-  // Painterly Enhancements
+  // High-Fidelity 2.5D Enhancements
   ctx.save();
   bladePath(ctx, cx, top, bottom, bw);
   ctx.clip();
-  rimLight(ctx, "rgba(255,255,255,0.25)", 4);
-  addNoise(ctx, 0.04);
+
+  // Depth Volume
+  bevel(ctx);
+  gloss(ctx, cx - bw, top, bw * 2, bottom - top);
+
+  rimLight(ctx, "rgba(255,255,255,0.4)", 3);
+  innerShadow(ctx, "rgba(0,0,0,0.2)", 4);
+
+  addNoise(ctx, 0.06);
   ctx.restore();
 
   bladePath(ctx, cx, top, bottom, bw);
-  outline(ctx, outlineColor, 3.5);
+  outline(ctx, outlineColor, 3.8);
 
-  // Center ridge
-  ctx.beginPath(); ctx.moveTo(cx, top + 4); ctx.lineTo(cx, bottom - 4);
-  ctx.strokeStyle = "rgba(255,255,255,0.55)"; ctx.lineWidth = 1.8; ctx.stroke();
+  // Center ridge - High contrast
+  ctx.beginPath(); ctx.moveTo(cx, top + 5); ctx.lineTo(cx, bottom - 5);
+  ctx.strokeStyle = "rgba(255,255,255,0.7)"; ctx.lineWidth = 2.0; ctx.stroke();
 }
 
 // ─── SWORD BLADES ────────────────────────────────────────────────────────────
