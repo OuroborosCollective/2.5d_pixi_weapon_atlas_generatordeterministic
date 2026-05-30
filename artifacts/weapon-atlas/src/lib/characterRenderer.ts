@@ -188,21 +188,41 @@ function pxOutline(ctx: CanvasRenderingContext2D, x: number, y: number, w: numbe
 
 function shade(c: string, amt: number): string {
   const n = parseInt(c.replace('#',''), 16);
-  const r = Math.max(0, Math.min(255, (n >> 16)         + amt));
-  const g = Math.max(0, Math.min(255, ((n >> 8) & 0xff) + amt));
-  const b = Math.max(0, Math.min(255, (n & 0xff)        + amt));
+  // Increased contrast multipliers for "Diablo 3" high-fidelity feel
+  const contrastFactor = amt > 0 ? 1.4 : 1.6;
+  const r = Math.max(0, Math.min(255, (n >> 16)         + Math.round(amt * contrastFactor)));
+  const g = Math.max(0, Math.min(255, ((n >> 8) & 0xff) + Math.round(amt * contrastFactor)));
+  const b = Math.max(0, Math.min(255, (n & 0xff)        + Math.round(amt * contrastFactor)));
   return '#' + [r, g, b].map(v => v.toString(16).padStart(2, '0')).join('');
 }
 
 // 4-tone shading palette for a base color
 function palette(c: string) {
   return {
-    hi:  shade(c,  42),   // specular highlight
-    l:   shade(c,  22),   // lit surface
+    hi:  shade(c,  52),   // sharper specular highlight
+    l:   shade(c,  28),   // brighter lit surface
     b:   c,               // base mid-tone
-    d:   shade(c, -26),   // shadow
-    vd:  shade(c, -48),   // deep shadow / outline
+    d:   shade(c, -34),   // deeper shadow
+    vd:  shade(c, -60),   // very deep shadow / outline
   };
+}
+
+function rimLightPx(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, color: string) {
+  ctx.save();
+  ctx.globalCompositeOperation = "screen";
+  ctx.fillStyle = color;
+  ctx.fillRect(x, y, 1, h); // Left rim
+  ctx.fillRect(x, y, w, 1); // Top rim
+  ctx.restore();
+}
+
+function innerShadowPx(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, color: string) {
+  ctx.save();
+  ctx.globalCompositeOperation = "multiply";
+  ctx.fillStyle = color;
+  ctx.fillRect(x + w - 1, y + 1, 1, h - 1); // Right inner shadow
+  ctx.fillRect(x + 1, y + h - 1, w - 1, 1); // Bottom inner shadow
+  ctx.restore();
 }
 
 // Dithered row: alternates between two colors (checkerboard, 1px row)
@@ -279,6 +299,10 @@ export function drawHead(ctx: CanvasRenderingContext2D, cx: number, cy: number, 
       ctx.fillStyle = pal.d;
       ctx.fillRect(px_ + pw_ - Math.max(2, Math.round(pw_ * 0.22)), py_, Math.max(2, Math.round(pw_ * 0.22)), 1);
     }
+
+    // High-fidelity volume effects
+    rimLightPx(ctx, px_, py_, Math.max(1, Math.round(pw_ * 0.15)), 1, "rgba(255,255,255,0.2)");
+    innerShadowPx(ctx, px_ + pw_ - Math.max(1, Math.round(pw_ * 0.15)), py_, Math.max(1, Math.round(pw_ * 0.15)), 1, "rgba(0,0,0,0.15)");
 
     // Outer outline pixels at left and right edges of each row
     ctx.fillStyle = out;
@@ -682,6 +706,10 @@ export function drawTorsoArmor(
       ctx.fillRect(rx_, ry_, 2, 1);
     }
 
+    // High-fidelity volume effects
+    rimLightPx(ctx, rx_, ry_, Math.max(1, Math.round(rw_ * 0.1)), 1, "rgba(255,255,255,0.15)");
+    innerShadowPx(ctx, rx_ + rw_ - Math.max(1, Math.round(rw_ * 0.1)), ry_, Math.max(1, Math.round(rw_ * 0.1)), 1, "rgba(0,0,0,0.12)");
+
     // Pauldron top outline
     if (row === 0 || (row === 4 && extraW > 0)) {
       ctx.fillStyle = out;
@@ -912,6 +940,10 @@ export function drawArms(
     else               c = pal.d;
     ctx.fillStyle = c;
     ctx.fillRect(ax, armY + row, armW, 1);
+
+    // High-fidelity volume per row
+    rimLightPx(ctx, ax, armY + row, 1, 1, "rgba(255,255,255,0.15)");
+    innerShadowPx(ctx, ax + armW - 1, armY + row, 1, 1, "rgba(0,0,0,0.12)");
   }
   // Left-lit vertical edge
   ctx.fillStyle = pal.l;
@@ -959,6 +991,10 @@ export function drawLegs(
       else               c = pal.vd; // back of knee shadow
       ctx.fillStyle = c;
       ctx.fillRect(lx, ly + row, legW, 1);
+
+      // High-fidelity volume per row
+      rimLightPx(ctx, lx, ly + row, 1, 1, "rgba(255,255,255,0.12)");
+      innerShadowPx(ctx, lx + legW - 1, ly + row, 1, 1, "rgba(0,0,0,0.1)");
     }
     // Knee cap highlight (1/3 down)
     const kneeRow = Math.round(legH * 0.28);
