@@ -17,6 +17,8 @@ export const CHAR_FRAME_H  = 64;
 export const CHAR_SHEET_COLS = 4;
 export const CHAR_SHEET_ROWS = 9;
 
+import { addGritPx, rimLightPx, innerShadowPx, shade, BAYER_4X4 } from "./canvasUtils";
+
 export type CharacterClass = 'warrior' | 'mage' | 'rogue' | 'ranger' | 'paladin' | 'berserker';
 export type CharacterRace  = 'human' | 'elf' | 'dwarf' | 'orc';
 export type ArmorTier      = 'leather' | 'iron' | 'steel' | 'mythril';
@@ -186,29 +188,25 @@ function pxOutline(ctx: CanvasRenderingContext2D, x: number, y: number, w: numbe
   ctx.fillRect(x+w-1, y,     1, h);
 }
 
-function shade(c: string, amt: number): string {
-  const n = parseInt(c.replace('#',''), 16);
-  const r = Math.max(0, Math.min(255, (n >> 16)         + amt));
-  const g = Math.max(0, Math.min(255, ((n >> 8) & 0xff) + amt));
-  const b = Math.max(0, Math.min(255, (n & 0xff)        + amt));
-  return '#' + [r, g, b].map(v => v.toString(16).padStart(2, '0')).join('');
-}
 
-// 4-tone shading palette for a base color
+// High-fidelity palette with increased contrast
 function palette(c: string) {
   return {
-    hi:  shade(c,  42),   // specular highlight
-    l:   shade(c,  22),   // lit surface
+    hi:  shade(c,  50),   // specular highlight
+    l:   shade(c,  28),   // lit surface
     b:   c,               // base mid-tone
-    d:   shade(c, -26),   // shadow
-    vd:  shade(c, -48),   // deep shadow / outline
+    d:   shade(c, -32),   // shadow
+    vd:  shade(c, -55),   // deep shadow / outline
   };
 }
 
-// Dithered row: alternates between two colors (checkerboard, 1px row)
+// Dithered row: alternates between two colors using Bayer matrix
 function ditherRow(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, c1: string, c2: string, offset = 0) {
+  const rowIdx = ((y % 4) + 4) % 4;
   for (let i = 0; i < w; i++) {
-    ctx.fillStyle = ((i + offset) % 2 === 0) ? c1 : c2;
+    const colIdx = (((i + offset) % 4) + 4) % 4;
+    const threshold = BAYER_4X4[rowIdx][colIdx];
+    ctx.fillStyle = (threshold < 8) ? c1 : c2;
     ctx.fillRect((x + i)|0, y|0, 1, 1);
   }
 }
@@ -268,6 +266,13 @@ export function drawHead(ctx: CanvasRenderingContext2D, cx: number, cy: number, 
 
     ctx.fillStyle = rowC;
     ctx.fillRect(px_, py_, pw_, 1);
+
+    // Add volume
+    if (t < 0.5) {
+      rimLightPx(ctx, px_, py_, pw_, 1, "rgba(255,255,255,0.15)");
+    } else {
+      innerShadowPx(ctx, px_, py_, pw_, 1, 0.1);
+    }
 
     // Left cheek highlight band (top-left lit)
     if (t > 0.25 && t < 0.60) {
@@ -667,6 +672,10 @@ export function drawTorsoArmor(
     ctx.fillStyle = rowC;
     ctx.fillRect(rx_, ry_, rw_, 1);
 
+    // High-fidelity volume
+    rimLightPx(ctx, rx_, ry_, rw_, 1, "rgba(255,255,255,0.12)");
+    if (t > 0.6) innerShadowPx(ctx, rx_, ry_, rw_, 1, 0.15);
+
     // Dithered transition rows
     if (row === 2) ditherRow(ctx, rx_, ry_, rw_, pal.l, pal.b);
     if (row === Math.round(totalRows * 0.65)) ditherRow(ctx, rx_, ry_, rw_, pal.b, pal.d);
@@ -765,6 +774,9 @@ export function drawTorsoArmor(
 
   // Torso outer outline
   pxOutline(ctx, tx, torsoY, w, h, out);
+
+  // High-fidelity material texture
+  addGritPx(ctx, tx, torsoY, w, h, 0.08);
 }
 
 // ─── BODY: MAGE ROBE (extra wide, with fold shading) ─────────────────────────
@@ -858,6 +870,9 @@ function drawMageRobe(
     ctx.fillRect(rx_ - 1, ry_, 1, 1);
     ctx.fillRect(rx_ + rw_, ry_, 1, 1);
   }
+
+  // High-fidelity material texture for robe
+  addGritPx(ctx, utx - maxExpand, robeTopY, uw + maxExpand * 2, 40, 0.06);
 
   // Hem trim
   const hemW = uw + maxExpand * 2;

@@ -72,18 +72,22 @@ function outerGlow(ctx: CanvasRenderingContext2D, color: string, alpha: number, 
   ctx.restore();
 }
 
+import { rimLightPx, innerShadowPx } from "./canvasUtils";
+
 export function drawRarityAura(ctx: CanvasRenderingContext2D, rarity: RarityLevel): void {
   switch (rarity) {
     case "common": {
       // Barely there — faint white rim sparkle
       particles(ctx, "#ffffff", 6, 50, 58, 1, 0.25);
       glowRim(ctx, "#aaaaaa", 0.12, 4, 2);
+      rimLightPx(ctx, 4, 4, SIZE - 8, SIZE - 8, "rgba(255,255,255,0.1)");
       break;
     }
     case "uncommon": {
       // Green outer glow rim + green sparkles
       outerGlow(ctx, "rgba(0,200,60,0.18)", 1, 64);
       glowRim(ctx, "#00c83c", 0.55, 10, 3);
+      rimLightPx(ctx, 4, 4, SIZE - 8, SIZE - 8, "rgba(100,255,150,0.2)");
       particles(ctx, "#44ff88", 8, 50, 60, 1.8, 0.7);
       break;
     }
@@ -91,6 +95,7 @@ export function drawRarityAura(ctx: CanvasRenderingContext2D, rarity: RarityLeve
       // Blue pulsing rim + corner rays + blue particles
       outerGlow(ctx, "rgba(0,112,221,0.22)", 1, 64);
       glowRim(ctx, "#0070dd", 0.65, 14, 3.5);
+      rimLightPx(ctx, 4, 4, SIZE - 8, SIZE - 8, "rgba(150,200,255,0.3)");
       rays(ctx, "#4ea8ff", 8, 10, 0.55);
       particles(ctx, "#80c8ff", 12, 48, 60, 2, 0.75);
       // Bright corner glints
@@ -107,6 +112,7 @@ export function drawRarityAura(ctx: CanvasRenderingContext2D, rarity: RarityLeve
       // Purple void rim glow + orbiting dim orbs + edge shimmer lines
       outerGlow(ctx, "rgba(163,53,238,0.28)", 1, 64);
       glowRim(ctx, "#a335ee", 0.7, 16, 4);
+      rimLightPx(ctx, 4, 4, SIZE - 8, SIZE - 8, "rgba(200,150,255,0.35)");
       particles(ctx, "#cc88ff", 10, 50, 62, 2.5, 0.8);
       // Orbiting larger orbs
       ctx.save();
@@ -134,6 +140,7 @@ export function drawRarityAura(ctx: CanvasRenderingContext2D, rarity: RarityLeve
       // Bright gold star burst + gold rim + 16 rays + heavy glow
       outerGlow(ctx, "rgba(255,128,0,0.32)", 1, 64);
       glowRim(ctx, "#ff8000", 0.8, 20, 5);
+      rimLightPx(ctx, 4, 4, SIZE - 8, SIZE - 8, "rgba(255,220,100,0.4)");
       rays(ctx, "#ffd060", 16, 14, 0.65);
       particles(ctx, "#ffe080", 14, 48, 62, 2.2, 0.85);
       // Central star gleam (4-pointed)
@@ -165,6 +172,7 @@ export function drawRarityAura(ctx: CanvasRenderingContext2D, rarity: RarityLeve
       // Cosmic pink/purple — intense outer nebula + rune ring + crown stars + swirl
       outerGlow(ctx, "rgba(255,100,200,0.35)", 1, 64);
       glowRim(ctx, "#ff50d0", 0.85, 24, 6);
+      rimLightPx(ctx, 4, 4, SIZE - 8, SIZE - 8, "rgba(255,180,240,0.5)");
       rays(ctx, "#ff80e8", 24, 16, 0.5);
       particles(ctx, "#ffaaff", 16, 46, 62, 2.5, 0.9);
       // Orbiting rune ring
@@ -201,6 +209,7 @@ export function drawElementEffect(ctx: CanvasRenderingContext2D, element: Elemen
     case "fire": {
       // Atmospheric fire effect with deeper color depth and multi-layered glow
       ctx.globalCompositeOperation = "screen";
+      innerShadowPx(ctx, 0, 0, SIZE, SIZE, 0.3);
       const fg = ctx.createRadialGradient(CX, SIZE - 10, 10, CX, SIZE - 5, 50);
       fg.addColorStop(0, "rgba(255,80,0,0.5)");
       fg.addColorStop(0.6, "rgba(180,40,0,0.2)");
@@ -238,6 +247,7 @@ export function drawElementEffect(ctx: CanvasRenderingContext2D, element: Elemen
     case "ice": {
       // Atmospheric ice effect with frosted overlay and shimmering crystals
       ctx.globalCompositeOperation = "screen";
+      rimLightPx(ctx, 0, 0, SIZE, SIZE, "rgba(255,255,255,0.2)");
       const ig = ctx.createRadialGradient(CX, CY, 30, CX, CY, 70);
       ig.addColorStop(0, "transparent");
       ig.addColorStop(0.7, "rgba(100,220,255,0.2)");
