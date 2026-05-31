@@ -17,6 +17,8 @@ export const CHAR_FRAME_H  = 64;
 export const CHAR_SHEET_COLS = 4;
 export const CHAR_SHEET_ROWS = 9;
 
+import { BAYER_4X4, addGritPx, rimLightPx, innerShadowPx, safeMod, shade as shadeUtil } from "./canvasUtils";
+
 export type CharacterClass = 'warrior' | 'mage' | 'rogue' | 'ranger' | 'paladin' | 'berserker';
 export type CharacterRace  = 'human' | 'elf' | 'dwarf' | 'orc';
 export type ArmorTier      = 'leather' | 'iron' | 'steel' | 'mythril';
@@ -187,29 +189,28 @@ function pxOutline(ctx: CanvasRenderingContext2D, x: number, y: number, w: numbe
 }
 
 function shade(c: string, amt: number): string {
-  const n = parseInt(c.replace('#',''), 16);
-  const r = Math.max(0, Math.min(255, (n >> 16)         + amt));
-  const g = Math.max(0, Math.min(255, ((n >> 8) & 0xff) + amt));
-  const b = Math.max(0, Math.min(255, (n & 0xff)        + amt));
-  return '#' + [r, g, b].map(v => v.toString(16).padStart(2, '0')).join('');
+  return shadeUtil(c, amt);
 }
 
 // 4-tone shading palette for a base color
 function palette(c: string) {
   return {
-    hi:  shade(c,  42),   // specular highlight
-    l:   shade(c,  22),   // lit surface
+    hi:  shade(c,  52),   // increased contrast specular highlight
+    l:   shade(c,  28),   // lit surface
     b:   c,               // base mid-tone
-    d:   shade(c, -26),   // shadow
-    vd:  shade(c, -48),   // deep shadow / outline
+    d:   shade(c, -34),   // shadow
+    vd:  shade(c, -60),   // deep shadow / outline
   };
 }
 
-// Dithered row: alternates between two colors (checkerboard, 1px row)
-function ditherRow(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, c1: string, c2: string, offset = 0) {
+// Bayer 4x4 dithering helper
+function ditherRow(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, c1: string, c2: string, threshold = 8) {
   for (let i = 0; i < w; i++) {
-    ctx.fillStyle = ((i + offset) % 2 === 0) ? c1 : c2;
-    ctx.fillRect((x + i)|0, y|0, 1, 1);
+    const px = (x + i) | 0;
+    const py = y | 0;
+    const bayerValue = BAYER_4X4[safeMod(py, 4)][safeMod(px, 4)];
+    ctx.fillStyle = bayerValue < threshold ? c1 : c2;
+    ctx.fillRect(px, py, 1, 1);
   }
 }
 
@@ -268,6 +269,11 @@ export function drawHead(ctx: CanvasRenderingContext2D, cx: number, cy: number, 
 
     ctx.fillStyle = rowC;
     ctx.fillRect(px_, py_, pw_, 1);
+
+    // Smooth dither transitions for head
+    if (t > 0.10 && t < 0.14) ditherRow(ctx, px_, py_, pw_, pal.hi, pal.l);
+    if (t > 0.28 && t < 0.32) ditherRow(ctx, px_, py_, pw_, pal.l, pal.b);
+    if (t > 0.66 && t < 0.70) ditherRow(ctx, px_, py_, pw_, pal.b, pal.d);
 
     // Left cheek highlight band (top-left lit)
     if (t > 0.25 && t < 0.60) {
@@ -763,8 +769,15 @@ export function drawTorsoArmor(
   px(ctx, tx - 2, beltY - 1, w + 4, 1, out);
   px(ctx, tx - 2, beltY + 4, w + 4, 1, out);
 
+  // Material texture
+  addGritPx(ctx, tx, torsoY, w, h, 0.08);
+
   // Torso outer outline
   pxOutline(ctx, tx, torsoY, w, h, out);
+
+  // Volume depth
+  rimLightPx(ctx, tx, torsoY, w, h, "rgba(255,255,255,0.15)");
+  innerShadowPx(ctx, tx, torsoY, w, h, "rgba(0,0,0,0.1)");
 }
 
 // ─── BODY: MAGE ROBE (extra wide, with fold shading) ─────────────────────────
@@ -858,6 +871,8 @@ function drawMageRobe(
     ctx.fillRect(rx_ - 1, ry_, 1, 1);
     ctx.fillRect(rx_ + rw_, ry_, 1, 1);
   }
+
+  addGritPx(ctx, utx - 3, lrobeTopY, uw + maxExpand * 2, robeRows, 0.06);
 
   // Hem trim
   const hemW = uw + maxExpand * 2;
@@ -980,8 +995,12 @@ export function drawLegs(
     // Boot toe (extended, adds depth)
     px(ctx, lx - 2, ly + legH + 4, legW + 4, 3, shade(bootC, -6));
     px(ctx, lx - 2, ly + legH + 4, legW + 4, 1, bootPal.l);
+    // Material texture
+    addGritPx(ctx, lx, ly, legW, legH, 0.08);
+
     // Outer outline
     pxOutline(ctx, lx, ly, legW, legH, pal.vd);
+    rimLightPx(ctx, lx, ly, legW, legH, "rgba(255,255,255,0.12)");
     px(ctx, lx - 1, ly + legH, 1, 7, bootPal.vd);      // boot left
     px(ctx, lx + legW, ly + legH, 1, 7, bootPal.vd);    // boot right
     px(ctx, lx - 2, ly + legH + 4, 1, 3, bootPal.vd);   // toe left
@@ -1440,6 +1459,7 @@ function drawSouth(
   // ── Head ──
   const headCY = by + 14;
   drawHead(ctx, cx, headCY, m.headW, m.headH, char.skinColor);
+  rimLightPx(ctx, cx - (m.headW >> 1), headCY - (m.headH >> 1), m.headW, m.headH, "rgba(255,255,255,0.15)");
 
   // ── Hair (before headgear so gear overlaps it) ──
   if (char.class !== 'warrior' && char.class !== 'paladin') {

@@ -1,3 +1,5 @@
+import { deterministicRandom, rimLightPx, innerShadowPx } from "./canvasUtils";
+
 export interface WeaponPart {
   id: string;
   name: string;
@@ -31,24 +33,25 @@ function rimLight(ctx: CanvasRenderingContext2D, color = "rgba(255,255,255,0.4)"
   ctx.restore();
 }
 
-function addNoise(ctx: CanvasRenderingContext2D, opacity = 0.05) {
+function addNoise(ctx: CanvasRenderingContext2D, opacity = 0.05, seed = 123) {
   ctx.save();
   ctx.globalCompositeOperation = "overlay";
   for (let i = 0; i < 500; i++) {
-    const x = Math.random() * 128;
-    const y = Math.random() * 128;
-    ctx.fillStyle = Math.random() > 0.5 ? `rgba(255,255,255,${opacity})` : `rgba(0,0,0,${opacity})`;
+    const x = (deterministicRandom(i, 0, seed) * 128) | 0;
+    const y = (deterministicRandom(0, i, seed) * 128) | 0;
+    const rand = deterministicRandom(x, y, seed + i);
+    ctx.fillStyle = rand > 0.5 ? `rgba(255,255,255,${opacity})` : `rgba(0,0,0,${opacity})`;
     ctx.fillRect(x, y, 1, 1);
   }
   ctx.restore();
 }
 
-function addGrit(ctx: CanvasRenderingContext2D, opacity = 0.12) {
+function addGrit(ctx: CanvasRenderingContext2D, opacity = 0.12, seed = 456) {
   ctx.save();
   for (let i = 0; i < 40; i++) {
-    const x = Math.random() * 128;
-    const y = Math.random() * 128;
-    const s = 0.5 + Math.random() * 1.5;
+    const x = (deterministicRandom(i, 1, seed) * 128) | 0;
+    const y = (deterministicRandom(1, i, seed) * 128) | 0;
+    const s = 0.5 + deterministicRandom(x, y, seed + i) * 1.5;
     ctx.fillStyle = `rgba(0,0,0,${opacity})`;
     ctx.fillRect(x, y, s, s);
   }
@@ -74,12 +77,13 @@ function shine(ctx: CanvasRenderingContext2D, x1: number, y1: number, x2: number
 function gem(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, c1: string, c2: string) {
   ctx.save();
   // Deep Glow
-  const glow = ctx.createRadialGradient(x, y, 0, x, y, r * 3);
-  glow.addColorStop(0, c1 + "aa");
+  const glow = ctx.createRadialGradient(x, y, 0, x, y, r * 3.5);
+  glow.addColorStop(0, c1 + "99");
+  glow.addColorStop(0.5, c1 + "33");
   glow.addColorStop(1, "transparent");
   ctx.fillStyle = glow;
   ctx.globalCompositeOperation = "screen";
-  ctx.beginPath(); ctx.arc(x, y, r * 3, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(x, y, r * 3.5, 0, Math.PI * 2); ctx.fill();
   ctx.restore();
 
   // Body — hexagonal facet
@@ -91,39 +95,67 @@ function gem(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, c1:
   ctx.lineTo(x - r * 0.85, y + r * 0.4);
   ctx.lineTo(x - r * 0.85, y - r * 0.4);
   ctx.closePath();
-  const g = ctx.createRadialGradient(x - r * 0.3, y - r * 0.4, 0, x, y, r * 1.2);
+  const g = ctx.createRadialGradient(x - r * 0.3, y - r * 0.4, 0, x, y, r * 1.5);
   g.addColorStop(0, "#ffffff");
-  g.addColorStop(0.15, c1);
-  g.addColorStop(1, c2);
+  g.addColorStop(0.2, c1);
+  g.addColorStop(0.8, c2);
+  g.addColorStop(1, "#000000");
   ctx.fillStyle = g;
   ctx.fill();
-  ctx.strokeStyle = "rgba(0,0,0,0.8)";
-  ctx.lineWidth = 1.8;
+  ctx.strokeStyle = "rgba(0,0,0,0.9)";
+  ctx.lineWidth = 2;
   ctx.stroke();
 
-  // Internal facets
+  // Internal facets for depth
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(x, y);
+  ctx.lineTo(x, y - r);
+  ctx.moveTo(x, y);
+  ctx.lineTo(x + r * 0.85, y + r * 0.4);
+  ctx.moveTo(x, y);
+  ctx.lineTo(x - r * 0.85, y + r * 0.4);
+  ctx.strokeStyle = "rgba(255,255,255,0.4)";
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  ctx.restore();
+
+  // Upper facet highlight
   ctx.beginPath();
   ctx.moveTo(x - r * 0.85, y - r * 0.4);
   ctx.lineTo(x, y - r);
   ctx.lineTo(x + r * 0.85, y - r * 0.4);
-  ctx.strokeStyle = "rgba(255,255,255,0.5)";
-  ctx.lineWidth = 1.2;
+  ctx.strokeStyle = "rgba(255,255,255,0.6)";
+  ctx.lineWidth = 1.5;
   ctx.stroke();
 
   // Sparkle
   ctx.fillStyle = "rgba(255,255,255,0.95)";
-  ctx.beginPath(); ctx.arc(x - r * 0.32, y - r * 0.42, r * 0.25, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(x - r * 0.35, y - r * 0.45, r * 0.3, 0, Math.PI * 2); ctx.fill();
+  rimLightPx(ctx, x - r, y - r, r * 2, r * 2, "rgba(255,255,255,0.4)");
 }
 
 function smallGem(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, c1: string, c2: string) {
   ctx.save();
+  // Small glow
+  const glow = ctx.createRadialGradient(x, y, 0, x, y, r * 2.5);
+  glow.addColorStop(0, c1 + "66");
+  glow.addColorStop(1, "transparent");
+  ctx.fillStyle = glow;
+  ctx.globalCompositeOperation = "screen";
+  ctx.beginPath(); ctx.arc(x, y, r * 2.5, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+
+  ctx.save();
   ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2);
-  const g = ctx.createRadialGradient(x - r * 0.3, y - r * 0.3, 0, x, y, r);
-  g.addColorStop(0, "#fff"); g.addColorStop(0.3, c1); g.addColorStop(1, c2);
+  const g = ctx.createRadialGradient(x - r * 0.3, y - r * 0.3, 0, x, y, r * 1.2);
+  g.addColorStop(0, "#fff"); g.addColorStop(0.2, c1); g.addColorStop(0.8, c2); g.addColorStop(1, "#000");
   ctx.fillStyle = g; ctx.fill();
-  ctx.strokeStyle = "rgba(0,0,0,0.7)"; ctx.lineWidth = 1.2; ctx.stroke();
+  ctx.strokeStyle = "rgba(0,0,0,0.8)"; ctx.lineWidth = 1.5; ctx.stroke();
+
+  // Highlight
   ctx.fillStyle = "rgba(255,255,255,0.9)";
-  ctx.beginPath(); ctx.arc(x - r * 0.3, y - r * 0.3, r * 0.3, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(x - r * 0.3, y - r * 0.3, r * 0.35, 0, Math.PI * 2); ctx.fill();
   ctx.restore();
 }
 
@@ -189,7 +221,8 @@ function drawBlade(
   ctx.save();
   bladePath(ctx, cx, top, bottom, bw);
   ctx.clip();
-  rimLight(ctx, "rgba(255,255,255,0.25)", 4);
+  rimLightPx(ctx, cx - bw, top, bw * 2, bottom - top, "rgba(255,255,255,0.3)");
+  innerShadowPx(ctx, cx - bw, top, bw * 2, bottom - top, "rgba(0,0,0,0.2)");
   addNoise(ctx, 0.04);
   ctx.restore();
 
@@ -280,7 +313,8 @@ function drawSwordBladeVoid(ctx: CanvasRenderingContext2D) {
 
   ctx.save();
   voidPath(); ctx.clip();
-  rimLight(ctx, "rgba(180,100,255,0.3)", 4);
+  rimLightPx(ctx, cx - bw, top, bw * 2, bot - top, "rgba(180,100,255,0.3)");
+  innerShadowPx(ctx, cx - bw, top, bw * 2, bot - top, "rgba(0,0,0,0.4)");
   addNoise(ctx, 0.06);
   ctx.restore();
 
@@ -324,7 +358,8 @@ function drawSwordBladeRoyal(ctx: CanvasRenderingContext2D) {
 
   ctx.save();
   leafPath(); ctx.clip();
-  rimLight(ctx, "rgba(255,255,255,0.3)", 5);
+  rimLightPx(ctx, cx - 20, top, 40, bot - top, "rgba(255,255,255,0.4)");
+  innerShadowPx(ctx, cx - 20, top, 40, bot - top, "rgba(0,0,0,0.25)");
   addNoise(ctx, 0.03);
   ctx.restore();
 
@@ -373,7 +408,8 @@ function drawSwordBladeCursed(ctx: CanvasRenderingContext2D) {
 
   ctx.save();
   cursedPath(); ctx.clip();
-  rimLight(ctx, "rgba(255,150,0,0.3)", 4);
+  rimLightPx(ctx, cx - bw, top, bw * 2, bot - top, "rgba(255,150,0,0.4)");
+  innerShadowPx(ctx, cx - bw, top, bw * 2, bot - top, "rgba(0,0,0,0.4)");
   addNoise(ctx, 0.07);
   ctx.restore();
 
