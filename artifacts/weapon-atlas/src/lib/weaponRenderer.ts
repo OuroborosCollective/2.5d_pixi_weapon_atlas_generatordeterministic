@@ -1,3 +1,5 @@
+import { deterministicHash, rimLightPx, innerShadowPx, addGritPx, shade } from "./canvasUtils";
+
 export interface WeaponPart {
   id: string;
   name: string;
@@ -31,24 +33,27 @@ function rimLight(ctx: CanvasRenderingContext2D, color = "rgba(255,255,255,0.4)"
   ctx.restore();
 }
 
-function addNoise(ctx: CanvasRenderingContext2D, opacity = 0.05) {
+function addNoise(ctx: CanvasRenderingContext2D, opacity = 0.05, seed = 42) {
   ctx.save();
   ctx.globalCompositeOperation = "overlay";
   for (let i = 0; i < 500; i++) {
-    const x = Math.random() * 128;
-    const y = Math.random() * 128;
-    ctx.fillStyle = Math.random() > 0.5 ? `rgba(255,255,255,${opacity})` : `rgba(0,0,0,${opacity})`;
+    const h = deterministicHash(i, seed, seed);
+    const x = (h % 128);
+    const y = ((h >> 7) % 128);
+    const bright = (h >> 14) % 2 === 0;
+    ctx.fillStyle = bright ? `rgba(255,255,255,${opacity})` : `rgba(0,0,0,${opacity})`;
     ctx.fillRect(x, y, 1, 1);
   }
   ctx.restore();
 }
 
-function addGrit(ctx: CanvasRenderingContext2D, opacity = 0.12) {
+function addGrit(ctx: CanvasRenderingContext2D, opacity = 0.12, seed = 123) {
   ctx.save();
   for (let i = 0; i < 40; i++) {
-    const x = Math.random() * 128;
-    const y = Math.random() * 128;
-    const s = 0.5 + Math.random() * 1.5;
+    const h = deterministicHash(i, seed, seed);
+    const x = (h % 128);
+    const y = ((h >> 7) % 128);
+    const s = 0.5 + ((h >> 14) % 150) / 100;
     ctx.fillStyle = `rgba(0,0,0,${opacity})`;
     ctx.fillRect(x, y, s, s);
   }
@@ -74,45 +79,62 @@ function shine(ctx: CanvasRenderingContext2D, x1: number, y1: number, x2: number
 function gem(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, c1: string, c2: string) {
   ctx.save();
   // Deep Glow
-  const glow = ctx.createRadialGradient(x, y, 0, x, y, r * 3);
-  glow.addColorStop(0, c1 + "aa");
+  const glowRadius = r * 3;
+  const glow = ctx.createRadialGradient(x, y, 0, x, y, glowRadius);
+  glow.addColorStop(0, c1 + "66");
   glow.addColorStop(1, "transparent");
   ctx.fillStyle = glow;
   ctx.globalCompositeOperation = "screen";
-  ctx.beginPath(); ctx.arc(x, y, r * 3, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(x, y, glowRadius, 0, Math.PI * 2); ctx.fill();
   ctx.restore();
 
   // Body — hexagonal facet
-  ctx.beginPath();
-  ctx.moveTo(x, y - r);
-  ctx.lineTo(x + r * 0.85, y - r * 0.4);
-  ctx.lineTo(x + r * 0.85, y + r * 0.4);
-  ctx.lineTo(x, y + r);
-  ctx.lineTo(x - r * 0.85, y + r * 0.4);
-  ctx.lineTo(x - r * 0.85, y - r * 0.4);
-  ctx.closePath();
-  const g = ctx.createRadialGradient(x - r * 0.3, y - r * 0.4, 0, x, y, r * 1.2);
+  const drawHex = () => {
+    ctx.beginPath();
+    ctx.moveTo(x, y - r);
+    ctx.lineTo(x + r * 0.85, y - r * 0.4);
+    ctx.lineTo(x + r * 0.85, y + r * 0.4);
+    ctx.lineTo(x, y + r);
+    ctx.lineTo(x - r * 0.85, y + r * 0.4);
+    ctx.lineTo(x - r * 0.85, y - r * 0.4);
+    ctx.closePath();
+  };
+
+  drawHex();
+  const g = ctx.createRadialGradient(x - r * 0.3, y - r * 0.4, 0, x, y, r * 1.5);
   g.addColorStop(0, "#ffffff");
-  g.addColorStop(0.15, c1);
-  g.addColorStop(1, c2);
+  g.addColorStop(0.2, c1);
+  g.addColorStop(0.8, c2);
+  g.addColorStop(1, shade(c2, -40));
   ctx.fillStyle = g;
   ctx.fill();
-  ctx.strokeStyle = "rgba(0,0,0,0.8)";
+
+  // Depth overlay
+  ctx.save();
+  ctx.clip();
+  innerShadowPx(ctx, x - r, y - r, r * 2, r * 2, "rgba(0,0,0,0.4)");
+  rimLightPx(ctx, x - r, y - r, r * 2, r * 2, "rgba(255,255,255,0.4)");
+  ctx.restore();
+
+  ctx.strokeStyle = "rgba(0,0,0,0.85)";
   ctx.lineWidth = 1.8;
+  drawHex();
   ctx.stroke();
 
-  // Internal facets
+  // Internal facets — simulation of light bouncing inside
   ctx.beginPath();
   ctx.moveTo(x - r * 0.85, y - r * 0.4);
-  ctx.lineTo(x, y - r);
-  ctx.lineTo(x + r * 0.85, y - r * 0.4);
-  ctx.strokeStyle = "rgba(255,255,255,0.5)";
-  ctx.lineWidth = 1.2;
+  ctx.lineTo(x + r * 0.85, y + r * 0.4);
+  ctx.moveTo(x + r * 0.85, y - r * 0.4);
+  ctx.lineTo(x - r * 0.85, y + r * 0.4);
+  ctx.strokeStyle = "rgba(255,255,255,0.2)";
+  ctx.lineWidth = 0.8;
   ctx.stroke();
 
   // Sparkle
   ctx.fillStyle = "rgba(255,255,255,0.95)";
-  ctx.beginPath(); ctx.arc(x - r * 0.32, y - r * 0.42, r * 0.25, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(x - r * 0.35, y - r * 0.45, r * 0.3, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
 }
 
 function smallGem(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, c1: string, c2: string) {
@@ -121,6 +143,12 @@ function smallGem(ctx: CanvasRenderingContext2D, x: number, y: number, r: number
   const g = ctx.createRadialGradient(x - r * 0.3, y - r * 0.3, 0, x, y, r);
   g.addColorStop(0, "#fff"); g.addColorStop(0.3, c1); g.addColorStop(1, c2);
   ctx.fillStyle = g; ctx.fill();
+
+  ctx.save();
+  ctx.clip();
+  innerShadowPx(ctx, x - r, y - r, r * 2, r * 2, "rgba(0,0,0,0.3)");
+  ctx.restore();
+
   ctx.strokeStyle = "rgba(0,0,0,0.7)"; ctx.lineWidth = 1.2; ctx.stroke();
   ctx.fillStyle = "rgba(255,255,255,0.9)";
   ctx.beginPath(); ctx.arc(x - r * 0.3, y - r * 0.3, r * 0.3, 0, Math.PI * 2); ctx.fill();
@@ -190,7 +218,10 @@ function drawBlade(
   bladePath(ctx, cx, top, bottom, bw);
   ctx.clip();
   rimLight(ctx, "rgba(255,255,255,0.25)", 4);
+  innerShadowPx(ctx, cx - bw, top, bw * 2, bottom - top, "rgba(0,0,0,0.15)");
+  rimLightPx(ctx, cx - bw, top, bw * 2, bottom - top, "rgba(255,255,255,0.15)");
   addNoise(ctx, 0.04);
+  addGritPx(ctx, cx - bw, top, bw * 2, bottom - top, 0.03);
   ctx.restore();
 
   bladePath(ctx, cx, top, bottom, bw);
