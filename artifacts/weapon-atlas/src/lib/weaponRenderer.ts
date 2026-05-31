@@ -1,3 +1,5 @@
+import { shade, addGritPx, rimLightPx, innerShadowPx } from "./canvasUtils";
+
 export interface WeaponPart {
   id: string;
   name: string;
@@ -24,6 +26,17 @@ function outline(ctx: CanvasRenderingContext2D, color = "#0d0d0d", lw = 3.5) {
 
 function rimLight(ctx: CanvasRenderingContext2D, color = "rgba(255,255,255,0.4)", lw = 2.5) {
   ctx.save();
+  ctx.globalCompositeOperation = "screen";
+  ctx.strokeStyle = color;
+  ctx.lineWidth = lw;
+  ctx.lineJoin = "round";
+  ctx.stroke();
+  ctx.restore();
+}
+
+function innerShadow(ctx: CanvasRenderingContext2D, color = "rgba(0,0,0,0.3)", lw = 2.5) {
+  ctx.save();
+  ctx.globalCompositeOperation = "multiply";
   ctx.strokeStyle = color;
   ctx.lineWidth = lw;
   ctx.lineJoin = "round";
@@ -32,27 +45,11 @@ function rimLight(ctx: CanvasRenderingContext2D, color = "rgba(255,255,255,0.4)"
 }
 
 function addNoise(ctx: CanvasRenderingContext2D, opacity = 0.05) {
-  ctx.save();
-  ctx.globalCompositeOperation = "overlay";
-  for (let i = 0; i < 500; i++) {
-    const x = Math.random() * 128;
-    const y = Math.random() * 128;
-    ctx.fillStyle = Math.random() > 0.5 ? `rgba(255,255,255,${opacity})` : `rgba(0,0,0,${opacity})`;
-    ctx.fillRect(x, y, 1, 1);
-  }
-  ctx.restore();
+  addGritPx(ctx, 0, 0, 128, 128, opacity);
 }
 
 function addGrit(ctx: CanvasRenderingContext2D, opacity = 0.12) {
-  ctx.save();
-  for (let i = 0; i < 40; i++) {
-    const x = Math.random() * 128;
-    const y = Math.random() * 128;
-    const s = 0.5 + Math.random() * 1.5;
-    ctx.fillStyle = `rgba(0,0,0,${opacity})`;
-    ctx.fillRect(x, y, s, s);
-  }
-  ctx.restore();
+  addGritPx(ctx, 0, 0, 128, 128, opacity);
 }
 
 function shine(ctx: CanvasRenderingContext2D, x1: number, y1: number, x2: number, y2: number, alpha = 0.6) {
@@ -190,6 +187,7 @@ function drawBlade(
   bladePath(ctx, cx, top, bottom, bw);
   ctx.clip();
   rimLight(ctx, "rgba(255,255,255,0.25)", 4);
+  innerShadow(ctx, "rgba(0,0,0,0.15)", 3);
   addNoise(ctx, 0.04);
   ctx.restore();
 
@@ -506,7 +504,12 @@ function drawGuardOrnateGold(ctx: CanvasRenderingContext2D) {
   ctx.bezierCurveTo(cx - 22, cy - 30, cx - 52, cy - 22, cx - 50, cy - 6);
   ctx.bezierCurveTo(cx - 48, cy + 6, cx - 28, cy + 8, cx - 6, cy + 8);
   ctx.closePath();
-  ctx.fillStyle = lg; ctx.fill(); outline(ctx, "#1a0a00", 3);
+  ctx.fillStyle = lg; ctx.fill();
+  ctx.save(); ctx.clip();
+  rimLight(ctx, "rgba(255,255,255,0.3)", 3);
+  innerShadow(ctx, "rgba(0,0,0,0.2)", 3);
+  ctx.restore();
+  outline(ctx, "#1a0a00", 3);
 
   // Right wing (mirror)
   ctx.save(); ctx.translate(cx * 2, 0); ctx.scale(-1, 1);
@@ -515,7 +518,12 @@ function drawGuardOrnateGold(ctx: CanvasRenderingContext2D) {
   ctx.bezierCurveTo(cx - 22, cy - 30, cx - 52, cy - 22, cx - 50, cy - 6);
   ctx.bezierCurveTo(cx - 48, cy + 6, cx - 28, cy + 8, cx - 6, cy + 8);
   ctx.closePath();
-  ctx.fillStyle = lg; ctx.fill(); outline(ctx, "#1a0a00", 3); ctx.restore();
+  ctx.fillStyle = lg; ctx.fill();
+  ctx.save(); ctx.clip();
+  rimLight(ctx, "rgba(255,255,255,0.3)", 3);
+  innerShadow(ctx, "rgba(0,0,0,0.2)", 3);
+  ctx.restore();
+  outline(ctx, "#1a0a00", 3); ctx.restore();
 
   // Center collar
   ctx.beginPath(); ctx.ellipse(cx, cy, 10, 10, 0, 0, Math.PI * 2);
@@ -646,7 +654,12 @@ function drawHandleLeather(ctx: CanvasRenderingContext2D) {
   ctx.beginPath(); ctx.roundRect(cx - hw, top, hw * 2, bot - top, 3);
   const lg = ctx.createLinearGradient(cx - hw, 0, cx + hw, 0);
   lg.addColorStop(0, "#3e1f0a"); lg.addColorStop(0.5, "#8b4520"); lg.addColorStop(1, "#3e1f0a");
-  ctx.fillStyle = lg; ctx.fill(); outline(ctx, "#1a0800", 3);
+  ctx.fillStyle = lg; ctx.fill();
+  ctx.save(); ctx.clip();
+  rimLight(ctx, "rgba(255,255,255,0.15)", 2);
+  innerShadow(ctx, "rgba(0,0,0,0.25)", 2);
+  ctx.restore();
+  outline(ctx, "#1a0800", 3);
   // Leather wrapping diagonal strips
   ctx.save(); ctx.clip();
   const stripW = 12;
@@ -939,7 +952,8 @@ function drawAxeHeadFire(ctx: CanvasRenderingContext2D) {
   const lg = ctx.createLinearGradient(cx - 8, 0, cx + 52, 0);
   lg.addColorStop(0, "#7f0000"); lg.addColorStop(0.35, "#ff3d00"); lg.addColorStop(0.6, "#ff9100"); lg.addColorStop(1, "#ffcc00");
   ctx.shadowColor = "#ff5500"; ctx.shadowBlur = 16;
-  ctx.fillStyle = lg; ctx.fill(); ctx.shadowBlur = 0; outline(ctx, "#1a0800", 3.5);
+  ctx.fillStyle = lg; ctx.fill(); ctx.shadowBlur = 0;
+  outline(ctx, "#330800", 3.5);
   // Flame wisps at edge
   ctx.fillStyle = "#ffcc00";
   for (const [fx, fy] of [[cx + 44, cy - 28], [cx + 50, cy], [cx + 44, cy + 28]]) {
@@ -1712,7 +1726,7 @@ function drawMaceHeadFire(ctx: CanvasRenderingContext2D) {
   const bg = ctx.createRadialGradient(cx - 8, cy - 8, 2, cx, cy, r);
   bg.addColorStop(0, "#ffcc00"); bg.addColorStop(0.4, "#ff6600"); bg.addColorStop(0.7, "#cc1100"); bg.addColorStop(1, "#4a0000");
   ctx.shadowColor = "#ff5500"; ctx.shadowBlur = 18;
-  ctx.fillStyle = bg; ctx.fill(); ctx.shadowBlur = 0; outline(ctx, "#1a0800", 3);
+  ctx.fillStyle = bg; ctx.fill(); ctx.shadowBlur = 0; outline(ctx, "#330800", 3);
   // Crack lines with glow
   ctx.strokeStyle = "#ffcc00"; ctx.lineWidth = 1.5;
   for (const [sx, sy, ex, ey] of [[cx - 10, cy - 20, cx + 5, cy], [cx + 8, cy - 14, cx - 4, cy + 14], [cx - 8, cy + 8, cx + 12, cy + 18]]) {

@@ -40,6 +40,8 @@ export const CHAR_RARITY_COLORS: Record<CharRarity, string> = {
   epic: '#a335ee', legendary: '#ff8000', mythic: '#e6cc80',
 };
 
+import { shade as shadeColor, addGritPx, rimLightPx, innerShadowPx, BAYER_4X4, safeModulo } from "./canvasUtils";
+
 export interface CharacterDef {
   id: string;
   name: string;
@@ -187,29 +189,28 @@ function pxOutline(ctx: CanvasRenderingContext2D, x: number, y: number, w: numbe
 }
 
 function shade(c: string, amt: number): string {
-  const n = parseInt(c.replace('#',''), 16);
-  const r = Math.max(0, Math.min(255, (n >> 16)         + amt));
-  const g = Math.max(0, Math.min(255, ((n >> 8) & 0xff) + amt));
-  const b = Math.max(0, Math.min(255, (n & 0xff)        + amt));
-  return '#' + [r, g, b].map(v => v.toString(16).padStart(2, '0')).join('');
+  return shadeColor(c, amt);
 }
 
 // 4-tone shading palette for a base color
 function palette(c: string) {
   return {
-    hi:  shade(c,  42),   // specular highlight
-    l:   shade(c,  22),   // lit surface
+    hi:  shade(c,  45),   // specular highlight
+    l:   shade(c,  25),   // lit surface
     b:   c,               // base mid-tone
-    d:   shade(c, -26),   // shadow
-    vd:  shade(c, -48),   // deep shadow / outline
+    d:   shade(c, -30),   // shadow
+    vd:  shade(c, -55),   // deep shadow / outline
   };
 }
 
-// Dithered row: alternates between two colors (checkerboard, 1px row)
+// Dithered row: use BAYER_4X4 for smoother transitions
 function ditherRow(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, c1: string, c2: string, offset = 0) {
   for (let i = 0; i < w; i++) {
-    ctx.fillStyle = ((i + offset) % 2 === 0) ? c1 : c2;
-    ctx.fillRect((x + i)|0, y|0, 1, 1);
+    const px = (x + i) | 0;
+    const py = y | 0;
+    const threshold = BAYER_4X4[safeModulo(py, 4)][safeModulo(px + offset, 4)];
+    ctx.fillStyle = threshold > 0.5 ? c1 : c2;
+    ctx.fillRect(px, py, 1, 1);
   }
 }
 
@@ -285,6 +286,11 @@ export function drawHead(ctx: CanvasRenderingContext2D, cx: number, cy: number, 
     ctx.fillRect(px_ - 1, py_, 1, 1);
     ctx.fillRect(px_ + pw_, py_, 1, 1);
   }
+
+  // Painterly polish
+  rimLightPx(ctx, ox + 2, oy + 2, rx, ry, "rgba(255,255,255,0.25)");
+  innerShadowPx(ctx, cx - 2, cy - 2, rx, ry, "rgba(0,0,0,0.15)");
+  addGritPx(ctx, ox, oy, w, h, 0.08);
 
   // Top and bottom cap outline
   for (let row = 0; row < h; row++) {
@@ -763,6 +769,11 @@ export function drawTorsoArmor(
   px(ctx, tx - 2, beltY - 1, w + 4, 1, out);
   px(ctx, tx - 2, beltY + 4, w + 4, 1, out);
 
+  // Polish
+  rimLightPx(ctx, tx, torsoY, w / 2, h / 2, "rgba(255,255,255,0.2)");
+  innerShadowPx(ctx, cx, torsoY + h / 2, w / 2, h / 2, "rgba(0,0,0,0.15)");
+  addGritPx(ctx, tx, torsoY, w, h, 0.1);
+
   // Torso outer outline
   pxOutline(ctx, tx, torsoY, w, h, out);
 }
@@ -930,6 +941,10 @@ export function drawArms(
   px(ctx, ax, handY, armW, 1, skinPal.l);        // wrist highlight
   px(ctx, ax + armW - 1, handY + 1, 1, 2, skinPal.d); // wrist shadow
 
+  // Polish
+  rimLightPx(ctx, ax, armY, armW / 2, armH / 2, "rgba(255,255,255,0.15)");
+  addGritPx(ctx, ax, armY, armW, armH, 0.08);
+
   // Outline
   pxOutline(ctx, ax, armY, armW, armH + 4, pal.vd);
 }
@@ -980,6 +995,10 @@ export function drawLegs(
     // Boot toe (extended, adds depth)
     px(ctx, lx - 2, ly + legH + 4, legW + 4, 3, shade(bootC, -6));
     px(ctx, lx - 2, ly + legH + 4, legW + 4, 1, bootPal.l);
+    // Polish
+    rimLightPx(ctx, lx, ly, legW / 2, legH / 2, "rgba(255,255,255,0.15)");
+    addGritPx(ctx, lx, ly, legW, legH, 0.08);
+
     // Outer outline
     pxOutline(ctx, lx, ly, legW, legH, pal.vd);
     px(ctx, lx - 1, ly + legH, 1, 7, bootPal.vd);      // boot left
