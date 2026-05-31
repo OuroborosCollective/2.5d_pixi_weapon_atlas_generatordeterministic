@@ -12,6 +12,8 @@
 //   - Clear class silhouettes readable at any scale
 //   - Outline only on outer edges; pixel clusters ≥2px (no isolated dots)
 
+import { BAYER_4X4, rimLightPx, innerShadowPx, addGritPx, shade } from "./canvasUtils";
+
 export const CHAR_FRAME_W  = 48;
 export const CHAR_FRAME_H  = 64;
 export const CHAR_SHEET_COLS = 4;
@@ -186,29 +188,23 @@ function pxOutline(ctx: CanvasRenderingContext2D, x: number, y: number, w: numbe
   ctx.fillRect(x+w-1, y,     1, h);
 }
 
-function shade(c: string, amt: number): string {
-  const n = parseInt(c.replace('#',''), 16);
-  const r = Math.max(0, Math.min(255, (n >> 16)         + amt));
-  const g = Math.max(0, Math.min(255, ((n >> 8) & 0xff) + amt));
-  const b = Math.max(0, Math.min(255, (n & 0xff)        + amt));
-  return '#' + [r, g, b].map(v => v.toString(16).padStart(2, '0')).join('');
-}
-
 // 4-tone shading palette for a base color
 function palette(c: string) {
   return {
-    hi:  shade(c,  42),   // specular highlight
-    l:   shade(c,  22),   // lit surface
+    hi:  shade(c,  52),   // specular highlight (increased contrast)
+    l:   shade(c,  28),   // lit surface
     b:   c,               // base mid-tone
-    d:   shade(c, -26),   // shadow
-    vd:  shade(c, -48),   // deep shadow / outline
+    d:   shade(c, -32),   // shadow
+    vd:  shade(c, -58),   // deep shadow / outline
   };
 }
 
-// Dithered row: alternates between two colors (checkerboard, 1px row)
+// Dithered row: alternates between two colors using Bayer matrix
 function ditherRow(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, c1: string, c2: string, offset = 0) {
+  const mod = (n: number, m: number) => ((n % m) + m) % m;
   for (let i = 0; i < w; i++) {
-    ctx.fillStyle = ((i + offset) % 2 === 0) ? c1 : c2;
+    const threshold = BAYER_4X4[mod(y, 4)][mod(x + i + offset, 4)];
+    ctx.fillStyle = (threshold < 8) ? c1 : c2;
     ctx.fillRect((x + i)|0, y|0, 1, 1);
   }
 }
@@ -285,6 +281,10 @@ export function drawHead(ctx: CanvasRenderingContext2D, cx: number, cy: number, 
     ctx.fillRect(px_ - 1, py_, 1, 1);
     ctx.fillRect(px_ + pw_, py_, 1, 1);
   }
+
+  // High-fidelity depth pass
+  rimLightPx(ctx, ox, oy, w, h, "rgba(255,255,255,0.2)");
+  innerShadowPx(ctx, ox, oy, w, h, "rgba(0,0,0,0.15)");
 
   // Top and bottom cap outline
   for (let row = 0; row < h; row++) {
@@ -687,13 +687,14 @@ export function drawTorsoArmor(
       ctx.fillStyle = out;
       ctx.fillRect(rx_ - 1, ry_, rw_ + 2, 1);
     }
-    // Side outline for pauldrons
-    if (row < 6 && extraW > 0) {
-      ctx.fillStyle = out;
-      ctx.fillRect(rx_ - 1, ry_, 1, 1);
-      ctx.fillRect(rx_ + rw_, ry_, 1, 1);
-    }
   }
+
+  // High-fidelity depth and texture
+  ctx.save();
+  rimLightPx(ctx, tx - 2, torsoY, w + 4, h, "rgba(255,255,255,0.15)");
+  innerShadowPx(ctx, tx - 2, torsoY, w + 4, h, "rgba(0,0,0,0.2)");
+  addGritPx(ctx, tx - 2, torsoY, w + 4, h, 0.05);
+  ctx.restore();
 
   // Berserker spikes on pauldrons
   if (isBerserker) {
@@ -932,6 +933,10 @@ export function drawArms(
 
   // Outline
   pxOutline(ctx, ax, armY, armW, armH + 4, pal.vd);
+
+  // High-fidelity depth
+  rimLightPx(ctx, ax, armY, armW, armH + 4, "rgba(255,255,255,0.1)");
+  innerShadowPx(ctx, ax, armY, armW, armH + 4, "rgba(0,0,0,0.1)");
 }
 
 // ─── BODY: LEGS ──────────────────────────────────────────────────────────────
@@ -987,6 +992,10 @@ export function drawLegs(
     px(ctx, lx - 2, ly + legH + 4, 1, 3, bootPal.vd);   // toe left
     px(ctx, lx + legW + 2, ly + legH + 4, 1, 3, bootPal.vd); // toe right
     px(ctx, lx - 2, ly + legH + 7, legW + 5, 1, bootPal.vd); // toe bottom
+
+    // High-fidelity depth
+    rimLightPx(ctx, lx - 1, ly, legW + 2, legH + 7, "rgba(255,255,255,0.1)");
+    innerShadowPx(ctx, lx - 1, ly, legW + 2, legH + 7, "rgba(0,0,0,0.1)");
   };
 
   // Left leg (cx-legW-3 so there's a visible gap between legs)

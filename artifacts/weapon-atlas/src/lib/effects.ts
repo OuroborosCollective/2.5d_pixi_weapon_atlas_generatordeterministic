@@ -73,6 +73,8 @@ function outerGlow(ctx: CanvasRenderingContext2D, color: string, alpha: number, 
 }
 
 export function drawRarityAura(ctx: CanvasRenderingContext2D, rarity: RarityLevel): void {
+  ctx.save();
+  ctx.globalCompositeOperation = "screen";
   switch (rarity) {
     case "common": {
       // Barely there — faint white rim sparkle
@@ -167,6 +169,8 @@ export function drawRarityAura(ctx: CanvasRenderingContext2D, rarity: RarityLeve
       glowRim(ctx, "#ff50d0", 0.85, 24, 6);
       rays(ctx, "#ff80e8", 24, 16, 0.5);
       particles(ctx, "#ffaaff", 16, 46, 62, 2.5, 0.9);
+      // Secondary translucent layer
+      outerGlow(ctx, "rgba(255,80,255,0.15)", 0.5, 75);
       // Orbiting rune ring
       ctx.save();
       ctx.strokeStyle = "#cc40b0"; ctx.lineWidth = 1; ctx.globalAlpha = 0.45;
@@ -191,6 +195,7 @@ export function drawRarityAura(ctx: CanvasRenderingContext2D, rarity: RarityLeve
       break;
     }
   }
+  ctx.restore();
 }
 
 // ─── ELEMENT EFFECTS ──────────────────────────────────────────────────────────
