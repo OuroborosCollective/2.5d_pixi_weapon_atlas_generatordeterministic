@@ -1,3 +1,5 @@
+import { coordHash, rimLightPx, innerShadowPx, addGritPx, shade } from "./canvasUtils";
+
 export interface WeaponPart {
   id: string;
   name: string;
@@ -31,24 +33,25 @@ function rimLight(ctx: CanvasRenderingContext2D, color = "rgba(255,255,255,0.4)"
   ctx.restore();
 }
 
-function addNoise(ctx: CanvasRenderingContext2D, opacity = 0.05) {
+function addNoise(ctx: CanvasRenderingContext2D, opacity = 0.05, seed = 123) {
   ctx.save();
   ctx.globalCompositeOperation = "overlay";
   for (let i = 0; i < 500; i++) {
-    const x = Math.random() * 128;
-    const y = Math.random() * 128;
-    ctx.fillStyle = Math.random() > 0.5 ? `rgba(255,255,255,${opacity})` : `rgba(0,0,0,${opacity})`;
+    const x = (coordHash(i, 0, seed) * 128) | 0;
+    const y = (coordHash(0, i, seed) * 128) | 0;
+    const val = coordHash(x, y, seed + i);
+    ctx.fillStyle = val > 0.5 ? `rgba(255,255,255,${opacity})` : `rgba(0,0,0,${opacity})`;
     ctx.fillRect(x, y, 1, 1);
   }
   ctx.restore();
 }
 
-function addGrit(ctx: CanvasRenderingContext2D, opacity = 0.12) {
+function addGrit(ctx: CanvasRenderingContext2D, opacity = 0.12, seed = 456) {
   ctx.save();
   for (let i = 0; i < 40; i++) {
-    const x = Math.random() * 128;
-    const y = Math.random() * 128;
-    const s = 0.5 + Math.random() * 1.5;
+    const x = (coordHash(i, 1, seed) * 128) | 0;
+    const y = (coordHash(1, i, seed) * 128) | 0;
+    const s = 0.5 + coordHash(x, y, seed) * 1.5;
     ctx.fillStyle = `rgba(0,0,0,${opacity})`;
     ctx.fillRect(x, y, s, s);
   }
@@ -75,7 +78,7 @@ function gem(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, c1:
   ctx.save();
   // Deep Glow
   const glow = ctx.createRadialGradient(x, y, 0, x, y, r * 3);
-  glow.addColorStop(0, c1 + "aa");
+  glow.addColorStop(0, c1 + "88");
   glow.addColorStop(1, "transparent");
   ctx.fillStyle = glow;
   ctx.globalCompositeOperation = "screen";
@@ -91,28 +94,55 @@ function gem(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, c1:
   ctx.lineTo(x - r * 0.85, y + r * 0.4);
   ctx.lineTo(x - r * 0.85, y - r * 0.4);
   ctx.closePath();
-  const g = ctx.createRadialGradient(x - r * 0.3, y - r * 0.4, 0, x, y, r * 1.2);
+
+  const g = ctx.createRadialGradient(x - r * 0.4, y - r * 0.4, 0, x, y, r * 1.5);
   g.addColorStop(0, "#ffffff");
-  g.addColorStop(0.15, c1);
-  g.addColorStop(1, c2);
+  g.addColorStop(0.1, shade(c1, 20));
+  g.addColorStop(0.4, c1);
+  g.addColorStop(0.8, c2);
+  g.addColorStop(1, shade(c2, -40));
   ctx.fillStyle = g;
   ctx.fill();
+
+  // Internal facets — simulation of depth
+  ctx.save();
+  ctx.clip();
+  ctx.strokeStyle = "rgba(255,255,255,0.3)";
+  ctx.lineWidth = 1;
+  // Center to corners
+  for (let i = 0; i < 6; i++) {
+    const a = (i / 6) * Math.PI * 2 - Math.PI / 2;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(x + r * Math.cos(a), y + r * Math.sin(a));
+    ctx.stroke();
+  }
+  // Inner hexagon
+  ctx.beginPath();
+  const ir = r * 0.5;
+  for (let i = 0; i < 6; i++) {
+    const a = (i / 6) * Math.PI * 2 - Math.PI / 2;
+    ctx.lineTo(x + ir * Math.cos(a), y + ir * Math.sin(a));
+  }
+  ctx.closePath();
+  ctx.stroke();
+  ctx.restore();
+
   ctx.strokeStyle = "rgba(0,0,0,0.8)";
   ctx.lineWidth = 1.8;
   ctx.stroke();
 
-  // Internal facets
-  ctx.beginPath();
-  ctx.moveTo(x - r * 0.85, y - r * 0.4);
-  ctx.lineTo(x, y - r);
-  ctx.lineTo(x + r * 0.85, y - r * 0.4);
-  ctx.strokeStyle = "rgba(255,255,255,0.5)";
-  ctx.lineWidth = 1.2;
-  ctx.stroke();
+  // Secondary Internal Highlight
+  const g2 = ctx.createLinearGradient(x - r, y - r, x + r, y + r);
+  g2.addColorStop(0, "rgba(255,255,255,0.4)");
+  g2.addColorStop(0.5, "transparent");
+  g2.addColorStop(1, "rgba(0,0,0,0.2)");
+  ctx.fillStyle = g2;
+  ctx.fill();
 
   // Sparkle
   ctx.fillStyle = "rgba(255,255,255,0.95)";
-  ctx.beginPath(); ctx.arc(x - r * 0.32, y - r * 0.42, r * 0.25, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(x - r * 0.35, y - r * 0.45, r * 0.3, 0, Math.PI * 2); ctx.fill();
 }
 
 function smallGem(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, c1: string, c2: string) {
@@ -191,6 +221,11 @@ function drawBlade(
   ctx.clip();
   rimLight(ctx, "rgba(255,255,255,0.25)", 4);
   addNoise(ctx, 0.04);
+  // Add pixel-level detail for material texture
+  addGritPx(ctx, cx - bw, top, bw * 2, bottom - top, 0.03);
+  // Add directional rim light and inner shadow for 2.5D volume
+  rimLightPx(ctx, cx - bw, top, bw * 2, bottom - top, "rgba(255,255,255,0.15)");
+  innerShadowPx(ctx, cx - bw, top, bw * 2, bottom - top, "rgba(0,0,0,0.15)");
   ctx.restore();
 
   bladePath(ctx, cx, top, bottom, bw);
@@ -646,7 +681,11 @@ function drawHandleLeather(ctx: CanvasRenderingContext2D) {
   ctx.beginPath(); ctx.roundRect(cx - hw, top, hw * 2, bot - top, 3);
   const lg = ctx.createLinearGradient(cx - hw, 0, cx + hw, 0);
   lg.addColorStop(0, "#3e1f0a"); lg.addColorStop(0.5, "#8b4520"); lg.addColorStop(1, "#3e1f0a");
-  ctx.fillStyle = lg; ctx.fill(); outline(ctx, "#1a0800", 3);
+  ctx.fillStyle = lg; ctx.fill();
+  addGritPx(ctx, cx - hw, top, hw * 2, bot - top, 0.1);
+  rimLightPx(ctx, cx - hw, top, hw * 2, bot - top, "rgba(255,255,255,0.1)");
+  innerShadowPx(ctx, cx - hw, top, hw * 2, bot - top, "rgba(0,0,0,0.1)");
+  outline(ctx, "#1a0800", 3);
   // Leather wrapping diagonal strips
   ctx.save(); ctx.clip();
   const stripW = 12;
@@ -675,7 +714,10 @@ function drawHandleBone(ctx: CanvasRenderingContext2D) {
   ctx.beginPath(); ctx.roundRect(cx - hw, top, hw * 2, bot - top, 3);
   const lg = ctx.createLinearGradient(cx - hw, 0, cx + hw, 0);
   lg.addColorStop(0, "#c8b080"); lg.addColorStop(0.5, "#fffde7"); lg.addColorStop(1, "#b09060");
-  ctx.fillStyle = lg; ctx.fill(); outline(ctx, "#1a1000", 3);
+  ctx.fillStyle = lg; ctx.fill();
+  addGritPx(ctx, cx - hw, top, hw * 2, bot - top, 0.08);
+  rimLightPx(ctx, cx - hw, top, hw * 2, bot - top, "rgba(255,255,255,0.15)");
+  outline(ctx, "#1a1000", 3);
   // Rib rings
   for (let ry = top + 10; ry < bot; ry += 14) {
     ctx.beginPath(); ctx.roundRect(cx - hw, ry, hw * 2, 6, 2);

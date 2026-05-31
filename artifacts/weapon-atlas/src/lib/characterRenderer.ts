@@ -12,6 +12,9 @@
 //   - Clear class silhouettes readable at any scale
 //   - Outline only on outer edges; pixel clusters ≥2px (no isolated dots)
 
+import { shouldDither, rimLightPx, innerShadowPx, addGritPx, shade as canvasShade, getPalette } from './canvasUtils';
+import { charHash } from './characterStyleGuide';
+
 export const CHAR_FRAME_W  = 48;
 export const CHAR_FRAME_H  = 64;
 export const CHAR_SHEET_COLS = 4;
@@ -186,29 +189,13 @@ function pxOutline(ctx: CanvasRenderingContext2D, x: number, y: number, w: numbe
   ctx.fillRect(x+w-1, y,     1, h);
 }
 
-function shade(c: string, amt: number): string {
-  const n = parseInt(c.replace('#',''), 16);
-  const r = Math.max(0, Math.min(255, (n >> 16)         + amt));
-  const g = Math.max(0, Math.min(255, ((n >> 8) & 0xff) + amt));
-  const b = Math.max(0, Math.min(255, (n & 0xff)        + amt));
-  return '#' + [r, g, b].map(v => v.toString(16).padStart(2, '0')).join('');
-}
+const shade = canvasShade;
+const palette = getPalette;
 
-// 4-tone shading palette for a base color
-function palette(c: string) {
-  return {
-    hi:  shade(c,  42),   // specular highlight
-    l:   shade(c,  22),   // lit surface
-    b:   c,               // base mid-tone
-    d:   shade(c, -26),   // shadow
-    vd:  shade(c, -48),   // deep shadow / outline
-  };
-}
-
-// Dithered row: alternates between two colors (checkerboard, 1px row)
-function ditherRow(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, c1: string, c2: string, offset = 0) {
+// Dithered row: alternates between two colors using Bayer 4x4 for smoother transitions
+function ditherRow(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, c1: string, c2: string, _offset = 0) {
   for (let i = 0; i < w; i++) {
-    ctx.fillStyle = ((i + offset) % 2 === 0) ? c1 : c2;
+    ctx.fillStyle = shouldDither(x + i, y, 8) ? c1 : c2;
     ctx.fillRect((x + i)|0, y|0, 1, 1);
   }
 }
@@ -686,6 +673,9 @@ export function drawTorsoArmor(
     if (row === 0 || (row === 4 && extraW > 0)) {
       ctx.fillStyle = out;
       ctx.fillRect(rx_ - 1, ry_, rw_ + 2, 1);
+      if (row === 0) {
+        rimLightPx(ctx, rx_, ry_, rw_, 1, "rgba(255,255,255,0.15)");
+      }
     }
     // Side outline for pauldrons
     if (row < 6 && extraW > 0) {
@@ -763,6 +753,11 @@ export function drawTorsoArmor(
   px(ctx, tx - 2, beltY - 1, w + 4, 1, out);
   px(ctx, tx - 2, beltY + 4, w + 4, 1, out);
 
+  // Add pixel-level detail for material texture
+  addGritPx(ctx, tx, torsoY, w, h, 0.05, charHash(charClass));
+  rimLightPx(ctx, tx, torsoY, w, h, "rgba(255,255,255,0.1)");
+  innerShadowPx(ctx, tx, torsoY, w, h, "rgba(0,0,0,0.1)");
+
   // Torso outer outline
   pxOutline(ctx, tx, torsoY, w, h, out);
 }
@@ -827,6 +822,9 @@ function drawMageRobe(
   px(ctx, utx - 4, beltY - 1, uw + 8, 1, pal.vd);
   px(ctx, utx - 4, beltY + 5, uw + 8, 1, pal.vd);
 
+  // Bodice texture
+  addGritPx(ctx, utx, robeTopY, uw, 14, 0.04, charHash(char.id));
+
   // ── Lower robe — wide flaring trapezoid ──
   const lrobeTopY = beltY + 5;
   const maxExpand = 10; // max extra pixels each side at hem
@@ -863,6 +861,11 @@ function drawMageRobe(
   const hemW = uw + maxExpand * 2;
   const hemX = (cx - (hemW >> 1)) | 0;
   const hemY = lrobeTopY + robeRows - 1;
+
+  // Lower robe texture & depth
+  addGritPx(ctx, hemX, lrobeTopY, hemW, robeRows, 0.04, charHash(char.id + "_robe"));
+  rimLightPx(ctx, hemX, lrobeTopY, hemW, robeRows, "rgba(255,255,255,0.08)");
+
   if (hemY < 60) {
     px(ctx, hemX, hemY,     hemW, 3, shade(rc, -28));
     px(ctx, hemX, hemY,     hemW, 1, shade(rc, 0));   // hem top highlight
@@ -1435,6 +1438,7 @@ function drawSouth(
   px(ctx, cx - 3, by + 22, 6, 4, neckC);
   px(ctx, cx - 2, by + 22, 4, 1, neckPal.l);   // neck top highlight
   px(ctx, cx + 2, by + 22, 1, 3, shade(neckC, -16)); // neck shadow
+  rimLightPx(ctx, cx - 3, by + 22, 6, 4, "rgba(255,255,255,0.1)");
   pxOutline(ctx, cx - 3, by + 22, 6, 4, '#18100E');
 
   // ── Head ──
