@@ -5,6 +5,8 @@
 //   Row 3: walk_north   Row 4: idle        Row 5: attack
 //   Row 6: cast(fb)     Row 7: hurt(fb)    Row 8: death(fb)
 //
+import { addGritPx, rimLightPx, innerShadowPx, shade as shadeColor } from "./canvasUtils";
+
 // Rendering philosophy (Ragnarok Online / Diablo-style pixel art):
 //   - Elliptical head via math-based row drawing (not rounded rect)
 //   - 4-tone shading (highlight/light/mid/shadow) + dithered transitions
@@ -187,11 +189,7 @@ function pxOutline(ctx: CanvasRenderingContext2D, x: number, y: number, w: numbe
 }
 
 function shade(c: string, amt: number): string {
-  const n = parseInt(c.replace('#',''), 16);
-  const r = Math.max(0, Math.min(255, (n >> 16)         + amt));
-  const g = Math.max(0, Math.min(255, ((n >> 8) & 0xff) + amt));
-  const b = Math.max(0, Math.min(255, (n & 0xff)        + amt));
-  return '#' + [r, g, b].map(v => v.toString(16).padStart(2, '0')).join('');
+  return shadeColor(c, amt);
 }
 
 // 4-tone shading palette for a base color
@@ -268,6 +266,10 @@ export function drawHead(ctx: CanvasRenderingContext2D, cx: number, cy: number, 
 
     ctx.fillStyle = rowC;
     ctx.fillRect(px_, py_, pw_, 1);
+
+    // High-fidelity depth
+    rimLightPx(ctx, px_, py_, 2, 1, "rgba(255,255,255,0.2)");
+    innerShadowPx(ctx, px_ + pw_ - 2, py_, 2, 1, "rgba(0,0,0,0.15)");
 
     // Left cheek highlight band (top-left lit)
     if (t > 0.25 && t < 0.60) {
@@ -666,6 +668,11 @@ export function drawTorsoArmor(
 
     ctx.fillStyle = rowC;
     ctx.fillRect(rx_, ry_, rw_, 1);
+
+    // High-fidelity texture and depth
+    rimLightPx(ctx, rx_, ry_, 1, 1, "rgba(255,255,255,0.25)");
+    innerShadowPx(ctx, rx_ + rw_ - 1, ry_, 1, 1, "rgba(0,0,0,0.2)");
+    if (row % 2 === 0) addGritPx(ctx, rx_, ry_, rw_, 1, 0.08);
 
     // Dithered transition rows
     if (row === 2) ditherRow(ctx, rx_, ry_, rw_, pal.l, pal.b);
