@@ -17,6 +17,8 @@ export const CHAR_FRAME_H  = 64;
 export const CHAR_SHEET_COLS = 4;
 export const CHAR_SHEET_ROWS = 9;
 
+import { BAYER_4X4, rimLightPx, innerShadowPx, addGritPx } from "./canvasUtils";
+
 export type CharacterClass = 'warrior' | 'mage' | 'rogue' | 'ranger' | 'paladin' | 'berserker';
 export type CharacterRace  = 'human' | 'elf' | 'dwarf' | 'orc';
 export type ArmorTier      = 'leather' | 'iron' | 'steel' | 'mythril';
@@ -205,10 +207,13 @@ function palette(c: string) {
   };
 }
 
-// Dithered row: alternates between two colors (checkerboard, 1px row)
-function ditherRow(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, c1: string, c2: string, offset = 0) {
+// Dithered row: alternates between two colors using Bayer 4x4 matrix
+function ditherRow(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, c1: string, c2: string, threshold = 0.5) {
   for (let i = 0; i < w; i++) {
-    ctx.fillStyle = ((i + offset) % 2 === 0) ? c1 : c2;
+    const py = ((y % 4) + 4) % 4;
+    const px = (((x + i) % 4) + 4) % 4;
+    const bayerVal = BAYER_4X4[py][px] / 16;
+    ctx.fillStyle = bayerVal < threshold ? c1 : c2;
     ctx.fillRect((x + i)|0, y|0, 1, 1);
   }
 }
@@ -268,6 +273,11 @@ export function drawHead(ctx: CanvasRenderingContext2D, cx: number, cy: number, 
 
     ctx.fillStyle = rowC;
     ctx.fillRect(px_, py_, pw_, 1);
+
+    // Add texture
+    if (row > 2 && row < h - 2) {
+      addGritPx(ctx, px_, py_, pw_, 1, 0.05, row);
+    }
 
     // Left cheek highlight band (top-left lit)
     if (t > 0.25 && t < 0.60) {
@@ -667,9 +677,16 @@ export function drawTorsoArmor(
     ctx.fillStyle = rowC;
     ctx.fillRect(rx_, ry_, rw_, 1);
 
+    // Material texture
+    addGritPx(ctx, rx_, ry_, rw_, 1, charClass === 'warrior' || charClass === 'paladin' ? 0.04 : 0.08, row + 100);
+
     // Dithered transition rows
     if (row === 2) ditherRow(ctx, rx_, ry_, rw_, pal.l, pal.b);
     if (row === Math.round(totalRows * 0.65)) ditherRow(ctx, rx_, ry_, rw_, pal.b, pal.d);
+
+    // High fidelity depth
+    if (row === 1) rimLightPx(ctx, rx_, ry_, rw_, 1, "rgba(255,255,255,0.2)");
+    if (row === totalRows - 2) innerShadowPx(ctx, rx_, ry_, rw_, 1, "rgba(0,0,0,0.1)");
 
     // Right-side shadow strip
     if (row >= 4 && row < totalRows - 1) {
@@ -912,6 +929,7 @@ export function drawArms(
     else               c = pal.d;
     ctx.fillStyle = c;
     ctx.fillRect(ax, armY + row, armW, 1);
+    addGritPx(ctx, ax, armY + row, armW, 1, 0.05, row + 200);
   }
   // Left-lit vertical edge
   ctx.fillStyle = pal.l;
@@ -959,6 +977,7 @@ export function drawLegs(
       else               c = pal.vd; // back of knee shadow
       ctx.fillStyle = c;
       ctx.fillRect(lx, ly + row, legW, 1);
+      addGritPx(ctx, lx, ly + row, legW, 1, 0.06, row + 300);
     }
     // Knee cap highlight (1/3 down)
     const kneeRow = Math.round(legH * 0.28);
