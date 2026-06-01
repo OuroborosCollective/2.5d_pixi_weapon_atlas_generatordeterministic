@@ -77,28 +77,28 @@ export function drawRarityAura(ctx: CanvasRenderingContext2D, rarity: RarityLeve
     case "common": {
       // Barely there — faint white rim sparkle
       particles(ctx, "#ffffff", 6, 50, 58, 1, 0.25);
-      glowRim(ctx, "#aaaaaa", 0.12, 4, 2);
+      glowRim(ctx, "#aaaaaa", 0.15, 6, 2);
       break;
     }
     case "uncommon": {
       // Green outer glow rim + green sparkles
-      outerGlow(ctx, "rgba(0,200,60,0.18)", 1, 64);
-      glowRim(ctx, "#00c83c", 0.55, 10, 3);
-      particles(ctx, "#44ff88", 8, 50, 60, 1.8, 0.7);
+      outerGlow(ctx, "rgba(0,255,100,0.22)", 1, 64);
+      glowRim(ctx, "#00ff40", 0.6, 12, 3);
+      particles(ctx, "#88ffaa", 10, 50, 60, 2, 0.75);
       break;
     }
     case "rare": {
       // Blue pulsing rim + corner rays + blue particles
-      outerGlow(ctx, "rgba(0,112,221,0.22)", 1, 64);
-      glowRim(ctx, "#0070dd", 0.65, 14, 3.5);
-      rays(ctx, "#4ea8ff", 8, 10, 0.55);
-      particles(ctx, "#80c8ff", 12, 48, 60, 2, 0.75);
+      outerGlow(ctx, "rgba(0,160,255,0.25)", 1, 64);
+      glowRim(ctx, "#0090ff", 0.7, 16, 3.5);
+      rays(ctx, "#60c0ff", 10, 12, 0.6);
+      particles(ctx, "#a0d8ff", 14, 48, 60, 2.2, 0.8);
       // Bright corner glints
       ctx.save();
-      ctx.globalAlpha = 0.5;
+      ctx.globalAlpha = 0.6;
       for (const [cx2, cy2] of [[6, 6], [122, 6], [6, 122], [122, 122]]) {
-        ctx.beginPath(); ctx.arc(cx2, cy2, 3, 0, Math.PI * 2);
-        ctx.fillStyle = "#80c8ff"; ctx.shadowColor = "#0070dd"; ctx.shadowBlur = 8; ctx.fill();
+        ctx.beginPath(); ctx.arc(cx2, cy2, 3.5, 0, Math.PI * 2);
+        ctx.fillStyle = "#ffffff"; ctx.shadowColor = "#00b0ff"; ctx.shadowBlur = 10; ctx.fill();
       }
       ctx.restore();
       break;
@@ -201,34 +201,39 @@ export function drawElementEffect(ctx: CanvasRenderingContext2D, element: Elemen
     case "fire": {
       // Atmospheric fire effect with deeper color depth and multi-layered glow
       ctx.globalCompositeOperation = "screen";
-      const fg = ctx.createRadialGradient(CX, SIZE - 10, 10, CX, SIZE - 5, 50);
-      fg.addColorStop(0, "rgba(255,80,0,0.5)");
-      fg.addColorStop(0.6, "rgba(180,40,0,0.2)");
+      const fg = ctx.createRadialGradient(CX, SIZE - 10, 10, CX, SIZE - 5, 60);
+      fg.addColorStop(0, "rgba(255,100,0,0.6)");
+      fg.addColorStop(0.5, "rgba(200,40,0,0.3)");
       fg.addColorStop(1, "transparent");
       ctx.fillStyle = fg; ctx.fillRect(0, 0, SIZE, SIZE);
 
-      const flames: [number, number, number][] = [
-        [CX - 18, 90, 24], [CX - 6, 75, 32], [CX + 4, 80, 28], [CX + 16, 88, 22],
-        [CX - 28, 98, 18], [CX + 26, 96, 16]
+      const flames: [number, number, number, number][] = [
+        [CX - 18, 90, 24, -0.2], [CX - 6, 75, 34, 0.1], [CX + 4, 80, 28, -0.15],
+        [CX + 16, 88, 22, 0.25], [CX - 28, 98, 20, -0.3], [CX + 26, 96, 18, 0.4]
       ];
-      for (const [fx, fy, fh] of flames) {
-        const lg = ctx.createLinearGradient(fx, fy, fx, fy - fh);
-        lg.addColorStop(0, "rgba(255,40,0,0.9)");
-        lg.addColorStop(0.4, "rgba(255,120,0,0.7)");
-        lg.addColorStop(1, "rgba(255,200,0,0)");
+      for (const [fx, fy, fh, rot] of flames) {
+        ctx.save();
+        ctx.translate(fx, fy);
+        ctx.rotate(rot);
+        const lg = ctx.createLinearGradient(0, 0, 0, -fh);
+        lg.addColorStop(0, "rgba(255,50,0,0.95)");
+        lg.addColorStop(0.3, "rgba(255,150,0,0.8)");
+        lg.addColorStop(0.6, "rgba(255,220,0,0.4)");
+        lg.addColorStop(1, "transparent");
         ctx.beginPath();
-        ctx.moveTo(fx - 5, fy);
-        ctx.bezierCurveTo(fx - 8, fy - fh * 0.4, fx + 6, fy - fh * 0.7, fx, fy - fh);
-        ctx.bezierCurveTo(fx - 5, fy - fh * 0.7, fx + 8, fy - fh * 0.3, fx + 5, fy);
+        ctx.moveTo(-6, 0);
+        ctx.bezierCurveTo(-10, -fh * 0.4, 8, -fh * 0.7, 0, -fh);
+        ctx.bezierCurveTo(-6, -fh * 0.7, 10, -fh * 0.3, 6, 0);
         ctx.closePath();
-        ctx.fillStyle = lg; ctx.shadowColor = "#ff3300"; ctx.shadowBlur = 10; ctx.fill();
+        ctx.fillStyle = lg; ctx.shadowColor = "#ff4400"; ctx.shadowBlur = 12; ctx.fill();
+        ctx.restore();
       }
 
       const sparks: [number, number, number][] = [
-        [CX - 22, 68, 2.2], [CX + 20, 60, 1.8], [CX - 10, 52, 2.5], [CX + 8, 45, 2],
-        [CX - 30, 78, 1.8], [CX + 28, 72, 2.2], [CX + 2, 38, 1.5]
+        [CX - 22, 68, 2.5], [CX + 20, 60, 2], [CX - 10, 52, 2.8], [CX + 8, 45, 2.2],
+        [CX - 30, 78, 2], [CX + 28, 72, 2.5], [CX + 2, 38, 1.8]
       ];
-      ctx.fillStyle = "#ffcc00"; ctx.shadowColor = "#ff9900"; ctx.shadowBlur = 8;
+      ctx.fillStyle = "#ffdd00"; ctx.shadowColor = "#ffaa00"; ctx.shadowBlur = 10;
       for (const [ex, ey, er] of sparks) {
         ctx.beginPath(); ctx.arc(ex, ey, er, 0, Math.PI * 2); ctx.fill();
       }

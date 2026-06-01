@@ -1,3 +1,5 @@
+import { hash2D, rimLightPx, innerShadowPx, addGritPx } from "./canvasUtils";
+
 export interface WeaponPart {
   id: string;
   name: string;
@@ -31,26 +33,27 @@ function rimLight(ctx: CanvasRenderingContext2D, color = "rgba(255,255,255,0.4)"
   ctx.restore();
 }
 
-function addNoise(ctx: CanvasRenderingContext2D, opacity = 0.05) {
+function addNoise(ctx: CanvasRenderingContext2D, opacity = 0.05, seed = 0) {
   ctx.save();
   ctx.globalCompositeOperation = "overlay";
   for (let i = 0; i < 500; i++) {
-    const x = Math.random() * 128;
-    const y = Math.random() * 128;
-    ctx.fillStyle = Math.random() > 0.5 ? `rgba(255,255,255,${opacity})` : `rgba(0,0,0,${opacity})`;
-    ctx.fillRect(x, y, 1, 1);
+    const nx = hash2D(i, seed, 1) * 128;
+    const ny = hash2D(i, seed, 2) * 128;
+    const val = hash2D(i, seed, 3);
+    ctx.fillStyle = val > 0.5 ? `rgba(255,255,255,${opacity})` : `rgba(0,0,0,${opacity})`;
+    ctx.fillRect(nx, ny, 1, 1);
   }
   ctx.restore();
 }
 
-function addGrit(ctx: CanvasRenderingContext2D, opacity = 0.12) {
+function addGrit(ctx: CanvasRenderingContext2D, opacity = 0.12, seed = 0) {
   ctx.save();
   for (let i = 0; i < 40; i++) {
-    const x = Math.random() * 128;
-    const y = Math.random() * 128;
-    const s = 0.5 + Math.random() * 1.5;
+    const nx = hash2D(i, seed, 4) * 128;
+    const ny = hash2D(i, seed, 5) * 128;
+    const ns = 0.5 + hash2D(i, seed, 6) * 1.5;
     ctx.fillStyle = `rgba(0,0,0,${opacity})`;
-    ctx.fillRect(x, y, s, s);
+    ctx.fillRect(nx, ny, ns, ns);
   }
   ctx.restore();
 }
@@ -75,7 +78,7 @@ function gem(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, c1:
   ctx.save();
   // Deep Glow
   const glow = ctx.createRadialGradient(x, y, 0, x, y, r * 3);
-  glow.addColorStop(0, c1 + "aa");
+  glow.addColorStop(0, c1 + "88");
   glow.addColorStop(1, "transparent");
   ctx.fillStyle = glow;
   ctx.globalCompositeOperation = "screen";
@@ -91,36 +94,53 @@ function gem(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, c1:
   ctx.lineTo(x - r * 0.85, y + r * 0.4);
   ctx.lineTo(x - r * 0.85, y - r * 0.4);
   ctx.closePath();
-  const g = ctx.createRadialGradient(x - r * 0.3, y - r * 0.4, 0, x, y, r * 1.2);
+  const g = ctx.createRadialGradient(x - r * 0.4, y - r * 0.4, 0, x, y, r * 1.5);
   g.addColorStop(0, "#ffffff");
-  g.addColorStop(0.15, c1);
-  g.addColorStop(1, c2);
+  g.addColorStop(0.2, c1);
+  g.addColorStop(0.8, c2);
+  g.addColorStop(1, "#000000");
   ctx.fillStyle = g;
   ctx.fill();
+
+  // Depth pass
+  ctx.save();
+  ctx.clip();
+  innerShadowPx(ctx, x - r, y - r, r * 2, r * 2, "rgba(0,0,0,0.4)");
+  rimLightPx(ctx, x - r, y - r, r * 2, r * 2, "rgba(255,255,255,0.3)");
+  ctx.restore();
+
   ctx.strokeStyle = "rgba(0,0,0,0.8)";
   ctx.lineWidth = 1.8;
   ctx.stroke();
 
-  // Internal facets
+  // Internal facets — more complex for high fidelity
   ctx.beginPath();
   ctx.moveTo(x - r * 0.85, y - r * 0.4);
-  ctx.lineTo(x, y - r);
+  ctx.lineTo(x, y);
   ctx.lineTo(x + r * 0.85, y - r * 0.4);
-  ctx.strokeStyle = "rgba(255,255,255,0.5)";
-  ctx.lineWidth = 1.2;
+  ctx.moveTo(x, y - r);
+  ctx.lineTo(x, y + r);
+  ctx.strokeStyle = "rgba(255,255,255,0.4)";
+  ctx.lineWidth = 1;
   ctx.stroke();
 
   // Sparkle
   ctx.fillStyle = "rgba(255,255,255,0.95)";
-  ctx.beginPath(); ctx.arc(x - r * 0.32, y - r * 0.42, r * 0.25, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(x - r * 0.35, y - r * 0.35, r * 0.2, 0, Math.PI * 2); ctx.fill();
 }
 
 function smallGem(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, c1: string, c2: string) {
   ctx.save();
   ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2);
-  const g = ctx.createRadialGradient(x - r * 0.3, y - r * 0.3, 0, x, y, r);
-  g.addColorStop(0, "#fff"); g.addColorStop(0.3, c1); g.addColorStop(1, c2);
+  const g = ctx.createRadialGradient(x - r * 0.4, y - r * 0.4, 0, x, y, r * 1.2);
+  g.addColorStop(0, "#fff"); g.addColorStop(0.2, c1); g.addColorStop(0.8, c2); g.addColorStop(1, "#000");
   ctx.fillStyle = g; ctx.fill();
+
+  ctx.save();
+  ctx.clip();
+  innerShadowPx(ctx, x - r, y - r, r * 2, r * 2, "rgba(0,0,0,0.3)");
+  ctx.restore();
+
   ctx.strokeStyle = "rgba(0,0,0,0.7)"; ctx.lineWidth = 1.2; ctx.stroke();
   ctx.fillStyle = "rgba(255,255,255,0.9)";
   ctx.beginPath(); ctx.arc(x - r * 0.3, y - r * 0.3, r * 0.3, 0, Math.PI * 2); ctx.fill();
@@ -189,8 +209,13 @@ function drawBlade(
   ctx.save();
   bladePath(ctx, cx, top, bottom, bw);
   ctx.clip();
-  rimLight(ctx, "rgba(255,255,255,0.25)", 4);
-  addNoise(ctx, 0.04);
+
+  // High fidelity volume
+  rimLightPx(ctx, cx - bw, top, bw * 2, bottom - top, "rgba(255,255,255,0.25)");
+  innerShadowPx(ctx, cx - bw, top, bw * 2, bottom - top, "rgba(0,0,0,0.15)");
+
+  addNoise(ctx, 0.04, 42);
+  addGritPx(ctx, (cx - bw) | 0, top | 0, (bw * 2) | 0, (bottom - top) | 0, 0.05, 42);
   ctx.restore();
 
   bladePath(ctx, cx, top, bottom, bw);
@@ -222,8 +247,12 @@ function drawSwordBladeIron(ctx: CanvasRenderingContext2D) {
   ctx.strokeStyle = "rgba(255,255,255,0.55)"; ctx.lineWidth = 1.5; ctx.stroke();
 
   shine(ctx, cx - bw + 3, top + 22, cx - bw + 3, bot - 10, 0.45);
+  ctx.save();
+  bladePath(ctx, cx, top, bot, bw);
+  ctx.clip();
   addGrit(ctx, 0.09);
   addNoise(ctx, 0.03);
+  ctx.restore();
 }
 
 function drawSwordBladeSteel(ctx: CanvasRenderingContext2D) {
@@ -342,7 +371,11 @@ function drawSwordBladeRoyal(ctx: CanvasRenderingContext2D) {
     smallGem(ctx, cx, dy, 4.5, "#4aa0ff", "#0a2080");
   }
   shine(ctx, cx - 18, top + 22, cx - 12, bot - 12, 0.5);
+  ctx.save();
+  leafPath();
+  ctx.clip();
   addGrit(ctx, 0.05);
+  ctx.restore();
 }
 
 function drawSwordBladeCursed(ctx: CanvasRenderingContext2D) {
@@ -366,7 +399,12 @@ function drawSwordBladeCursed(ctx: CanvasRenderingContext2D) {
 
   cursedPath();
   const lg = ctx.createLinearGradient(cx - bw, 0, cx + bw, 0);
-  lg.addColorStop(0, "#220000"); lg.addColorStop(0.3, "#8b0000"); lg.addColorStop(0.7, "#cc2200"); lg.addColorStop(1, "#ff5500");
+  lg.addColorStop(0, "#220000");
+  lg.addColorStop(0.2, "#4a0000");
+  lg.addColorStop(0.4, "#8b0000");
+  lg.addColorStop(0.6, "#cc2200");
+  lg.addColorStop(0.8, "#ff5500");
+  lg.addColorStop(1, "#ffcc00");
   ctx.fillStyle = lg;
   ctx.shadowColor = "#ff3300"; ctx.shadowBlur = 15;
   ctx.fill(); ctx.shadowBlur = 0;
@@ -469,8 +507,12 @@ function drawSwordBladeAncient(ctx: CanvasRenderingContext2D) {
   ctx.beginPath(); ctx.moveTo(cx + bw - 2, top + 70); ctx.lineTo(cx + bw - 6, top + 76); ctx.stroke();
 
   shine(ctx, cx - bw + 3, top + 20, cx - bw + 3, bot - 8, 0.4);
+  ctx.save();
+  bladePath(ctx, cx, top, bot, bw);
+  ctx.clip();
   addGrit(ctx, 0.15);
   addNoise(ctx, 0.05);
+  ctx.restore();
 }
 
 // ─── SWORD GUARDS ─────────────────────────────────────────────────────────────
@@ -843,16 +885,29 @@ function drawPommelVoid(ctx: CanvasRenderingContext2D) {
 
 function drawAxeHeadIron(ctx: CanvasRenderingContext2D) {
   const cx = 64, cy = 64;
-  ctx.beginPath();
-  ctx.moveTo(cx - 10, cy - 26);
-  ctx.lineTo(cx + 28, cy - 34);
-  ctx.bezierCurveTo(cx + 50, cy - 28, cx + 50, cy + 28, cx + 28, cy + 34);
-  ctx.lineTo(cx - 10, cy + 26);
-  ctx.lineTo(cx - 8, cy);
-  ctx.closePath();
+  const path = () => {
+    ctx.beginPath();
+    ctx.moveTo(cx - 10, cy - 26);
+    ctx.lineTo(cx + 28, cy - 34);
+    ctx.bezierCurveTo(cx + 50, cy - 28, cx + 50, cy + 28, cx + 28, cy + 34);
+    ctx.lineTo(cx - 10, cy + 26);
+    ctx.lineTo(cx - 8, cy);
+    ctx.closePath();
+  };
+  path();
   const lg = ctx.createLinearGradient(cx - 10, 0, cx + 50, 0);
   lg.addColorStop(0, "#4a4a4a"); lg.addColorStop(0.4, "#a0a0a0"); lg.addColorStop(0.7, "#d0d0d0"); lg.addColorStop(1, "#606060");
-  ctx.fillStyle = lg; ctx.fill(); outline(ctx, "#1a1a1a", 3.5);
+  ctx.fillStyle = lg; ctx.fill();
+
+  ctx.save(); path(); ctx.clip();
+  rimLightPx(ctx, cx - 10, cy - 34, 60, 68, "rgba(255,255,255,0.2)");
+  innerShadowPx(ctx, cx - 10, cy - 34, 60, 68, "rgba(0,0,0,0.15)");
+  addNoise(ctx, 0.04, 101);
+  addGritPx(ctx, cx - 10, cy - 34, 60, 68, 0.06, 101);
+  ctx.restore();
+
+  path();
+  outline(ctx, "#1a1a1a", 3.5);
   // Edge highlight
   ctx.beginPath();
   ctx.bezierCurveTo(cx + 50, cy - 28, cx + 50, cy + 28, cx + 28, cy + 34);
@@ -876,7 +931,11 @@ function drawAxeHeadVoid(ctx: CanvasRenderingContext2D) {
     ctx.bezierCurveTo(cx + 10, cy - 10 * side, cx - 4, cy - 4 * side, cx - 8, cy - 6 * side);
     ctx.closePath();
     const lg = ctx.createLinearGradient(cx - 8, 0, cx + 44, 0);
-    lg.addColorStop(0, "#0d001a"); lg.addColorStop(0.4, "#4a0a7a"); lg.addColorStop(1, "#9b30d0");
+    lg.addColorStop(0, "#050010");
+    lg.addColorStop(0.3, "#0d001a");
+    lg.addColorStop(0.6, "#4a0a7a");
+    lg.addColorStop(0.8, "#9b30d0");
+    lg.addColorStop(1, "#d090ff");
     ctx.shadowColor = "#b060ff"; ctx.shadowBlur = 10;
     ctx.fillStyle = lg; ctx.fill(); ctx.shadowBlur = 0; outline(ctx, "#0d0014", 3);
     ctx.restore();
@@ -937,7 +996,12 @@ function drawAxeHeadFire(ctx: CanvasRenderingContext2D) {
   ctx.bezierCurveTo(cx + 24, cy + 42, cx, cy + 32, cx - 8, cy);
   ctx.closePath();
   const lg = ctx.createLinearGradient(cx - 8, 0, cx + 52, 0);
-  lg.addColorStop(0, "#7f0000"); lg.addColorStop(0.35, "#ff3d00"); lg.addColorStop(0.6, "#ff9100"); lg.addColorStop(1, "#ffcc00");
+  lg.addColorStop(0, "#3a0000");
+  lg.addColorStop(0.2, "#7f0000");
+  lg.addColorStop(0.4, "#ff3d00");
+  lg.addColorStop(0.7, "#ff9100");
+  lg.addColorStop(0.9, "#ffcc00");
+  lg.addColorStop(1, "#ffffff");
   ctx.shadowColor = "#ff5500"; ctx.shadowBlur = 16;
   ctx.fillStyle = lg; ctx.fill(); ctx.shadowBlur = 0; outline(ctx, "#1a0800", 3.5);
   // Flame wisps at edge
@@ -1000,10 +1064,20 @@ function drawAxeHandleBone(ctx: CanvasRenderingContext2D) {
 
 function drawHammerHeadIron(ctx: CanvasRenderingContext2D) {
   const cx = 64, cy = 58, w = 52, h = 36;
-  ctx.beginPath(); ctx.roundRect(cx - w / 2, cy - h / 2, w, h, 5);
+  const path = () => { ctx.beginPath(); ctx.roundRect(cx - w / 2, cy - h / 2, w, h, 5); };
+  path();
   const lg = ctx.createLinearGradient(0, cy - h / 2, 0, cy + h / 2);
   lg.addColorStop(0, "#b0b0b0"); lg.addColorStop(0.3, "#d8d8d8"); lg.addColorStop(0.7, "#888"); lg.addColorStop(1, "#444");
-  ctx.fillStyle = lg; ctx.fill(); outline(ctx, "#1a1a1a", 3.5);
+  ctx.fillStyle = lg; ctx.fill();
+
+  ctx.save(); path(); ctx.clip();
+  rimLightPx(ctx, cx - w / 2, cy - h / 2, w, h, "rgba(255,255,255,0.2)");
+  innerShadowPx(ctx, cx - w / 2, cy - h / 2, w, h, "rgba(0,0,0,0.15)");
+  addGritPx(ctx, cx - w / 2, cy - h / 2, w, h, 0.08, 202);
+  ctx.restore();
+
+  path();
+  outline(ctx, "#1a1a1a", 3.5);
   // Crosshatch on face
   ctx.strokeStyle = "rgba(80,80,80,0.4)"; ctx.lineWidth = 1;
   for (let hx = cx - w / 2 + 6; hx < cx + w / 2 - 4; hx += 8) {
@@ -1041,7 +1115,11 @@ function drawHammerHeadVoid(ctx: CanvasRenderingContext2D) {
   const cx = 64, cy = 58, w = 50, h = 34;
   ctx.beginPath(); ctx.roundRect(cx - w / 2, cy - h / 2, w, h, 4);
   const lg = ctx.createLinearGradient(0, cy - h / 2, 0, cy + h / 2);
-  lg.addColorStop(0, "#1a003a"); lg.addColorStop(0.5, "#3a0066"); lg.addColorStop(1, "#0d001a");
+  lg.addColorStop(0, "#050010");
+  lg.addColorStop(0.3, "#1a003a");
+  lg.addColorStop(0.6, "#3a0066");
+  lg.addColorStop(0.8, "#6a1b9a");
+  lg.addColorStop(1, "#d090ff");
   ctx.shadowColor = "#9b30d0"; ctx.shadowBlur = 14;
   ctx.fillStyle = lg; ctx.fill(); ctx.shadowBlur = 0; outline(ctx, "#0d0014", 3.5);
   // Rune carvings glowing
@@ -1065,10 +1143,20 @@ function drawSpearTipSteel(ctx: CanvasRenderingContext2D) {
   const cx = 64, top = 8, bot = 90, bw = 11;
   drawBlade(ctx, cx, top, bot, bw, "#607d8b", "#eceff1", "#37474f");
   // Socket
-  ctx.beginPath(); ctx.roundRect(cx - 8, bot - 6, 16, 22, 2);
+  const path = () => { ctx.beginPath(); ctx.roundRect(cx - 8, bot - 6, 16, 22, 2); };
+  path();
   const sg = ctx.createLinearGradient(cx - 8, 0, cx + 8, 0);
   sg.addColorStop(0, "#506070"); sg.addColorStop(0.5, "#90a0b0"); sg.addColorStop(1, "#506070");
-  ctx.fillStyle = sg; ctx.fill(); outline(ctx, "#0d0d0d", 2.5);
+  ctx.fillStyle = sg; ctx.fill();
+
+  ctx.save(); path(); ctx.clip();
+  rimLightPx(ctx, cx - 8, bot - 6, 16, 22, "rgba(255,255,255,0.2)");
+  innerShadowPx(ctx, cx - 8, bot - 6, 16, 22, "rgba(0,0,0,0.15)");
+  addGritPx(ctx, cx - 8, bot - 6, 16, 22, 0.08, 303);
+  ctx.restore();
+
+  path();
+  outline(ctx, "#0d0d0d", 2.5);
   shine(ctx, cx - 9, bot + 2, cx - 9, bot + 16);
 }
 
@@ -1128,17 +1216,33 @@ function drawStaffHeadArcane(ctx: CanvasRenderingContext2D) {
   const clawHL = "#c07020";
   for (const a of [-0.6, 0, 0.6]) {
     ctx.save(); ctx.translate(cx, cy); ctx.rotate(a);
-    ctx.beginPath(); ctx.moveTo(-4, 0); ctx.bezierCurveTo(-8, -20, -6, -36, 0, -40); ctx.bezierCurveTo(6, -36, 8, -20, 4, 0); ctx.closePath();
+    const path = () => { ctx.beginPath(); ctx.moveTo(-4, 0); ctx.bezierCurveTo(-8, -20, -6, -36, 0, -40); ctx.bezierCurveTo(6, -36, 8, -20, 4, 0); ctx.closePath(); };
+    path();
     const lg = ctx.createLinearGradient(-8, -40, 8, 0);
     lg.addColorStop(0, clawHL); lg.addColorStop(1, clawColor);
-    ctx.fillStyle = lg; ctx.fill(); outline(ctx, "#1a0a00", 2.5); ctx.restore();
+    ctx.fillStyle = lg; ctx.fill();
+
+    ctx.save(); path(); ctx.clip();
+    rimLightPx(ctx, -8, -40, 16, 40, "rgba(255,255,255,0.2)");
+    innerShadowPx(ctx, -8, -40, 16, 40, "rgba(0,0,0,0.2)");
+    ctx.restore();
+
+    outline(ctx, "#1a0a00", 2.5); ctx.restore();
   }
   // Orb
-  ctx.beginPath(); ctx.arc(cx, cy, 22, 0, Math.PI * 2);
+  const orbPath = () => { ctx.beginPath(); ctx.arc(cx, cy, 22, 0, Math.PI * 2); };
+  orbPath();
   const og = ctx.createRadialGradient(cx - 6, cy - 6, 0, cx, cy, 22);
   og.addColorStop(0, "#ffffff"); og.addColorStop(0.2, "#a0b0ff"); og.addColorStop(0.6, "#3040c0"); og.addColorStop(1, "#050a40");
   ctx.shadowColor = "#6080ff"; ctx.shadowBlur = 18;
-  ctx.fillStyle = og; ctx.fill(); ctx.shadowBlur = 0; outline(ctx, "#001133", 3);
+  ctx.fillStyle = og; ctx.fill(); ctx.shadowBlur = 0;
+
+  ctx.save(); orbPath(); ctx.clip();
+  rimLightPx(ctx, cx - 22, cy - 22, 44, 44, "rgba(160,180,255,0.4)");
+  innerShadowPx(ctx, cx - 22, cy - 22, 44, 44, "rgba(0,0,0,0.3)");
+  ctx.restore();
+
+  outline(ctx, "#001133", 3);
   // Inner sparkle
   ctx.fillStyle = "rgba(255,255,255,0.7)";
   ctx.beginPath(); ctx.ellipse(cx - 7, cy - 7, 5, 7, -0.5, 0, Math.PI * 2); ctx.fill();
@@ -1161,7 +1265,11 @@ function drawStaffHeadFire(ctx: CanvasRenderingContext2D) {
     ctx.bezierCurveTo(fx + 6, fy + 30, fx + 10, fy + 18, fx, fy);
     ctx.closePath();
     const lg = ctx.createLinearGradient(0, fy, 0, fy + 34);
-    lg.addColorStop(0, "#ffcc00"); lg.addColorStop(0.5, "#ff5500"); lg.addColorStop(1, "#cc0000");
+    lg.addColorStop(0, "#ffffff");
+    lg.addColorStop(0.2, "#ffcc00");
+    lg.addColorStop(0.5, "#ff5500");
+    lg.addColorStop(0.8, "#cc0000");
+    lg.addColorStop(1, "#4a0000");
     ctx.shadowColor = "#ff5500"; ctx.shadowBlur = 10;
     ctx.fillStyle = lg; ctx.fill(); ctx.shadowBlur = 0;
   }
@@ -1457,23 +1565,34 @@ function drawBowLimbWood(ctx: CanvasRenderingContext2D) {
     g.addColorStop(0, "#3e2210"); g.addColorStop(0.4, "#7a4820"); g.addColorStop(0.7, "#a06030"); g.addColorStop(1, "#3e2210");
     return g;
   };
+  const limbPath = () => {
+    ctx.beginPath();
+    ctx.moveTo(cx - 5, cy - 6);
+    ctx.bezierCurveTo(cx - armW, cy - 18, cx - recurveX, cy - armH - 8, cx - 8, cy - armH - 14);
+    ctx.bezierCurveTo(cx - 2, cy - armH - 16, cx + 4, cy - armH - 14, cx + 8, cy - armH - 10);
+    ctx.bezierCurveTo(cx + recurveX - 2, cy - armH, cx + armW - 4, cy - 14, cx + 5, cy - 6);
+    ctx.closePath();
+  };
   // Upper limb
-  ctx.beginPath();
-  ctx.moveTo(cx - 5, cy - 6);
-  ctx.bezierCurveTo(cx - armW, cy - 18, cx - recurveX, cy - armH - 8, cx - 8, cy - armH - 14);
-  ctx.bezierCurveTo(cx - 2, cy - armH - 16, cx + 4, cy - armH - 14, cx + 8, cy - armH - 10);
-  ctx.bezierCurveTo(cx + recurveX - 2, cy - armH, cx + armW - 4, cy - 14, cx + 5, cy - 6);
-  ctx.closePath();
-  ctx.fillStyle = woodGrad(cy - armH - 16, cy - 6); ctx.fill(); outline(ctx, "#0d0800", 3);
+  limbPath();
+  ctx.fillStyle = woodGrad(cy - armH - 16, cy - 6); ctx.fill();
+  ctx.save(); limbPath(); ctx.clip();
+  rimLightPx(ctx, cx - armW, cy - armH - 16, armW * 2, armH + 10, "rgba(255,255,255,0.15)");
+  innerShadowPx(ctx, cx - armW, cy - armH - 16, armW * 2, armH + 10, "rgba(0,0,0,0.2)");
+  addGritPx(ctx, cx - armW, cy - armH - 16, armW * 2, armH + 10, 0.07, 404);
+  ctx.restore();
+  limbPath(); outline(ctx, "#0d0800", 3);
+
   // Lower limb (mirror)
   ctx.save(); ctx.translate(cx, cy); ctx.scale(1, -1); ctx.translate(-cx, -cy);
-  ctx.beginPath();
-  ctx.moveTo(cx - 5, cy - 6);
-  ctx.bezierCurveTo(cx - armW, cy - 18, cx - recurveX, cy - armH - 8, cx - 8, cy - armH - 14);
-  ctx.bezierCurveTo(cx - 2, cy - armH - 16, cx + 4, cy - armH - 14, cx + 8, cy - armH - 10);
-  ctx.bezierCurveTo(cx + recurveX - 2, cy - armH, cx + armW - 4, cy - 14, cx + 5, cy - 6);
-  ctx.closePath();
-  ctx.fillStyle = woodGrad(cy - armH - 16, cy - 6); ctx.fill(); outline(ctx, "#0d0800", 3); ctx.restore();
+  limbPath();
+  ctx.fillStyle = woodGrad(cy - armH - 16, cy - 6); ctx.fill();
+  ctx.save(); limbPath(); ctx.clip();
+  rimLightPx(ctx, cx - armW, cy - armH - 16, armW * 2, armH + 10, "rgba(255,255,255,0.15)");
+  innerShadowPx(ctx, cx - armW, cy - armH - 16, armW * 2, armH + 10, "rgba(0,0,0,0.2)");
+  addGritPx(ctx, cx - armW, cy - armH - 16, armW * 2, armH + 10, 0.07, 404);
+  ctx.restore();
+  limbPath(); outline(ctx, "#0d0800", 3); ctx.restore();
   // Riser (center grip)
   ctx.beginPath(); ctx.roundRect(cx - 7, cy - 12, 14, 24, 4);
   const rg = ctx.createLinearGradient(cx - 7, 0, cx + 7, 0);
@@ -1710,7 +1829,11 @@ function drawMaceHeadFire(ctx: CanvasRenderingContext2D) {
   // Ball
   ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2);
   const bg = ctx.createRadialGradient(cx - 8, cy - 8, 2, cx, cy, r);
-  bg.addColorStop(0, "#ffcc00"); bg.addColorStop(0.4, "#ff6600"); bg.addColorStop(0.7, "#cc1100"); bg.addColorStop(1, "#4a0000");
+  bg.addColorStop(0, "#ffffff");
+  bg.addColorStop(0.2, "#ffcc00");
+  bg.addColorStop(0.5, "#ff6600");
+  bg.addColorStop(0.8, "#cc1100");
+  bg.addColorStop(1, "#4a0000");
   ctx.shadowColor = "#ff5500"; ctx.shadowBlur = 18;
   ctx.fillStyle = bg; ctx.fill(); ctx.shadowBlur = 0; outline(ctx, "#1a0800", 3);
   // Crack lines with glow
@@ -1898,7 +2021,17 @@ function drawSwordBladeScimitar(ctx: CanvasRenderingContext2D) {
   ctx.arc(cx + 4, top + 36, 3, 0, Math.PI * 2);
   ctx.fillStyle = "rgba(180,145,60,0.4)"; ctx.fill();
 
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(cx, top);
+  ctx.bezierCurveTo(cx + 18, top + 16, cx + 30, top + 46, cx + 24, bot - 6);
+  ctx.lineTo(cx + 20, bot);
+  ctx.lineTo(cx + 15, bot);
+  ctx.bezierCurveTo(cx + 5, top + 62, cx - 6, top + 36, cx, top);
+  ctx.closePath();
+  ctx.clip();
   addGrit(ctx, 0.06);
+  ctx.restore();
 }
 
 function drawSwordBladeKatana(ctx: CanvasRenderingContext2D) {
@@ -2033,7 +2166,16 @@ function drawSwordBladeSabre(ctx: CanvasRenderingContext2D) {
   ctx.strokeStyle = "rgba(0,0,0,0.25)"; ctx.lineWidth = 1.5; ctx.stroke();
 
   shine(ctx, cx - 5, top + 14, cx - 3, bot - 14, 0.35);
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(cx - 4, top);
+  ctx.bezierCurveTo(cx + 15, top + 24, cx + 19, top + 56, cx + 13, bot - 6);
+  ctx.lineTo(cx + 9, bot); ctx.lineTo(cx + 3, bot);
+  ctx.bezierCurveTo(cx - 3, top + 56, cx - 7, top + 28, cx - 4, top);
+  ctx.closePath();
+  ctx.clip();
   addGrit(ctx, 0.08);
+  ctx.restore();
 }
 
 // ─── NEW GUARDS ───────────────────────────────────────────────────────────────
