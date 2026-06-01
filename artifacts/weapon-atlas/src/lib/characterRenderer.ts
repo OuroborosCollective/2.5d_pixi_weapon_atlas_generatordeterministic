@@ -12,6 +12,8 @@
 //   - Clear class silhouettes readable at any scale
 //   - Outline only on outer edges; pixel clusters ≥2px (no isolated dots)
 
+import { rimLightPx, innerShadowPx, addGritPx, ditherPx, shade as canvasShade } from './canvasUtils';
+
 export const CHAR_FRAME_W  = 48;
 export const CHAR_FRAME_H  = 64;
 export const CHAR_SHEET_COLS = 4;
@@ -187,11 +189,7 @@ function pxOutline(ctx: CanvasRenderingContext2D, x: number, y: number, w: numbe
 }
 
 function shade(c: string, amt: number): string {
-  const n = parseInt(c.replace('#',''), 16);
-  const r = Math.max(0, Math.min(255, (n >> 16)         + amt));
-  const g = Math.max(0, Math.min(255, ((n >> 8) & 0xff) + amt));
-  const b = Math.max(0, Math.min(255, (n & 0xff)        + amt));
-  return '#' + [r, g, b].map(v => v.toString(16).padStart(2, '0')).join('');
+  return canvasShade(c, amt);
 }
 
 // 4-tone shading palette for a base color
@@ -268,6 +266,10 @@ export function drawHead(ctx: CanvasRenderingContext2D, cx: number, cy: number, 
 
     ctx.fillStyle = rowC;
     ctx.fillRect(px_, py_, pw_, 1);
+
+    // Subtle 2.5D shading
+    rimLightPx(ctx, px_, py_, pw_, 1, 'rgba(255,255,255,0.12)');
+    innerShadowPx(ctx, px_, py_, pw_, 1, 'rgba(0,0,0,0.12)');
 
     // Left cheek highlight band (top-left lit)
     if (t > 0.25 && t < 0.60) {
@@ -667,9 +669,16 @@ export function drawTorsoArmor(
     ctx.fillStyle = rowC;
     ctx.fillRect(rx_, ry_, rw_, 1);
 
-    // Dithered transition rows
-    if (row === 2) ditherRow(ctx, rx_, ry_, rw_, pal.l, pal.b);
-    if (row === Math.round(totalRows * 0.65)) ditherRow(ctx, rx_, ry_, rw_, pal.b, pal.d);
+    // Advanced dithering for material transitions
+    if (row === 2) ditherPx(ctx, rx_, ry_, rw_, 1, pal.l, pal.b, 6);
+    if (row === Math.round(totalRows * 0.65)) ditherPx(ctx, rx_, ry_, rw_, 1, pal.b, pal.d, 10);
+
+    // Add material texture (grit) to armor
+    addGritPx(ctx, rx_, ry_, rw_, 1, 0.08);
+
+    // 2.5D Depth Enhancements
+    rimLightPx(ctx, rx_, ry_, rw_, 1, 'rgba(255,255,255,0.15)');
+    innerShadowPx(ctx, rx_, ry_, rw_, 1, 'rgba(0,0,0,0.15)');
 
     // Right-side shadow strip
     if (row >= 4 && row < totalRows - 1) {
