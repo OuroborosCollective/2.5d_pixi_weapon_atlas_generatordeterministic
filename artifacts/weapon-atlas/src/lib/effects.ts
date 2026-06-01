@@ -1,3 +1,5 @@
+import { shade, rimLightPx } from './canvasUtils';
+
 export type RarityLevel = "common" | "uncommon" | "rare" | "epic" | "legendary" | "mythic";
 export type ElementType = "none" | "fire" | "ice" | "electro" | "wind";
 
@@ -17,6 +19,9 @@ function glowRim(ctx: CanvasRenderingContext2D, color: string, alpha: number, bl
   ctx.beginPath();
   ctx.roundRect(m, m, SIZE - m * 2, SIZE - m * 2, 10);
   ctx.stroke();
+
+  // High-fidelity rim light enhancement
+  rimLightPx(ctx, m, m, SIZE - m * 2, SIZE - m * 2, shade(color, 40) + "88");
 
   // Secondary softer glow
   ctx.shadowBlur = blur * 1.5;
@@ -207,21 +212,43 @@ export function drawElementEffect(ctx: CanvasRenderingContext2D, element: Elemen
       fg.addColorStop(1, "transparent");
       ctx.fillStyle = fg; ctx.fillRect(0, 0, SIZE, SIZE);
 
-      const flames: [number, number, number][] = [
-        [CX - 18, 90, 24], [CX - 6, 75, 32], [CX + 4, 80, 28], [CX + 16, 88, 22],
-        [CX - 28, 98, 18], [CX + 26, 96, 16]
+      const flames: [number, number, number, number][] = [
+        [CX - 18, 90, 24, -0.1], [CX - 6, 75, 32, 0.1], [CX + 4, 80, 28, -0.05], [CX + 16, 88, 22, 0.15],
+        [CX - 28, 98, 18, -0.2], [CX + 26, 96, 16, 0.2]
       ];
-      for (const [fx, fy, fh] of flames) {
-        const lg = ctx.createLinearGradient(fx, fy, fx, fy - fh);
+      for (const [fx, fy, fh, rot] of flames) {
+        ctx.save();
+        ctx.translate(fx, fy);
+        ctx.rotate(rot);
+
+        const lg = ctx.createLinearGradient(0, 0, 0, -fh);
         lg.addColorStop(0, "rgba(255,40,0,0.9)");
         lg.addColorStop(0.4, "rgba(255,120,0,0.7)");
         lg.addColorStop(1, "rgba(255,200,0,0)");
+
         ctx.beginPath();
-        ctx.moveTo(fx - 5, fy);
-        ctx.bezierCurveTo(fx - 8, fy - fh * 0.4, fx + 6, fy - fh * 0.7, fx, fy - fh);
-        ctx.bezierCurveTo(fx - 5, fy - fh * 0.7, fx + 8, fy - fh * 0.3, fx + 5, fy);
+        ctx.moveTo(-5, 0);
+        ctx.bezierCurveTo(-8, -fh * 0.4, 6, -fh * 0.7, 0, -fh);
+        ctx.bezierCurveTo(-5, -fh * 0.7, 8, -fh * 0.3, 5, 0);
         ctx.closePath();
-        ctx.fillStyle = lg; ctx.shadowColor = "#ff3300"; ctx.shadowBlur = 10; ctx.fill();
+
+        ctx.fillStyle = lg;
+        ctx.shadowColor = "#ff3300";
+        ctx.shadowBlur = 12;
+        ctx.fill();
+
+        // Multi-layered internal core
+        const coreG = ctx.createLinearGradient(0, 0, 0, -fh * 0.6);
+        coreG.addColorStop(0, "rgba(255,200,0,0.8)");
+        coreG.addColorStop(1, "rgba(255,255,255,0)");
+        ctx.fillStyle = coreG;
+        ctx.beginPath();
+        ctx.moveTo(-2, 0);
+        ctx.lineTo(0, -fh * 0.6);
+        ctx.lineTo(2, 0);
+        ctx.fill();
+
+        ctx.restore();
       }
 
       const sparks: [number, number, number][] = [

@@ -1,3 +1,5 @@
+import { shade } from './canvasUtils';
+
 export interface WeaponPart {
   id: string;
   name: string;
@@ -16,14 +18,22 @@ function outline(ctx: CanvasRenderingContext2D, color = "#0d0d0d", lw = 3.5) {
   ctx.lineWidth = lw;
   ctx.lineJoin = "round";
   ctx.lineCap = "round";
-  ctx.shadowColor = "rgba(0,0,0,0.5)";
-  ctx.shadowBlur = 2;
+
+  // High-fidelity double outline
+  ctx.shadowColor = "rgba(0,0,0,0.6)";
+  ctx.shadowBlur = 3;
   ctx.stroke();
+
+  ctx.strokeStyle = shade(color, 15);
+  ctx.lineWidth = lw * 0.4;
+  ctx.stroke();
+
   ctx.restore();
 }
 
 function rimLight(ctx: CanvasRenderingContext2D, color = "rgba(255,255,255,0.4)", lw = 2.5) {
   ctx.save();
+  ctx.globalCompositeOperation = "screen";
   ctx.strokeStyle = color;
   ctx.lineWidth = lw;
   ctx.lineJoin = "round";
@@ -57,29 +67,39 @@ function addGrit(ctx: CanvasRenderingContext2D, opacity = 0.12) {
 
 function shine(ctx: CanvasRenderingContext2D, x1: number, y1: number, x2: number, y2: number, alpha = 0.6) {
   ctx.save();
+  ctx.globalCompositeOperation = "screen";
   const g = ctx.createLinearGradient(x1, y1, x2, y2);
   g.addColorStop(0, `rgba(255,255,255,0)`);
   g.addColorStop(0.5, `rgba(255,255,255,${alpha})`);
   g.addColorStop(1, `rgba(255,255,255,0)`);
   ctx.strokeStyle = g;
-  ctx.lineWidth = 2.5;
+  ctx.lineWidth = 3;
   ctx.lineCap = "round";
+
+  // Main shine
   ctx.beginPath();
   ctx.moveTo(x1, y1);
   ctx.lineTo(x2, y2);
   ctx.stroke();
+
+  // Secondary tighter, brighter core
+  ctx.lineWidth = 1.2;
+  ctx.globalAlpha = alpha * 0.8;
+  ctx.stroke();
+
   ctx.restore();
 }
 
 function gem(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, c1: string, c2: string) {
   ctx.save();
   // Deep Glow
-  const glow = ctx.createRadialGradient(x, y, 0, x, y, r * 3);
-  glow.addColorStop(0, c1 + "aa");
+  const glow = ctx.createRadialGradient(x, y, 0, x, y, r * 4);
+  glow.addColorStop(0, c1 + "88");
+  glow.addColorStop(0.5, c1 + "22");
   glow.addColorStop(1, "transparent");
   ctx.fillStyle = glow;
   ctx.globalCompositeOperation = "screen";
-  ctx.beginPath(); ctx.arc(x, y, r * 3, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(x, y, r * 4, 0, Math.PI * 2); ctx.fill();
   ctx.restore();
 
   // Body — hexagonal facet
@@ -91,28 +111,44 @@ function gem(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, c1:
   ctx.lineTo(x - r * 0.85, y + r * 0.4);
   ctx.lineTo(x - r * 0.85, y - r * 0.4);
   ctx.closePath();
-  const g = ctx.createRadialGradient(x - r * 0.3, y - r * 0.4, 0, x, y, r * 1.2);
+
+  // Layered gradient for depth
+  const g = ctx.createRadialGradient(x - r * 0.4, y - r * 0.5, 0, x, y, r * 1.5);
   g.addColorStop(0, "#ffffff");
-  g.addColorStop(0.15, c1);
-  g.addColorStop(1, c2);
+  g.addColorStop(0.1, shade(c1, 20));
+  g.addColorStop(0.4, c1);
+  g.addColorStop(1, shade(c2, -20));
   ctx.fillStyle = g;
   ctx.fill();
-  ctx.strokeStyle = "rgba(0,0,0,0.8)";
-  ctx.lineWidth = 1.8;
+
+  ctx.strokeStyle = "rgba(0,0,0,0.9)";
+  ctx.lineWidth = 2;
   ctx.stroke();
 
-  // Internal facets
+  // Internal facets — simulation of light bouncing inside
+  ctx.save();
+  ctx.globalCompositeOperation = "screen";
+  ctx.beginPath();
+  ctx.moveTo(x - r * 0.6, y + r * 0.3);
+  ctx.lineTo(x, y);
+  ctx.lineTo(x + r * 0.6, y + r * 0.3);
+  ctx.strokeStyle = "rgba(255,255,255,0.3)";
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  ctx.restore();
+
+  // Top rim light
   ctx.beginPath();
   ctx.moveTo(x - r * 0.85, y - r * 0.4);
   ctx.lineTo(x, y - r);
   ctx.lineTo(x + r * 0.85, y - r * 0.4);
-  ctx.strokeStyle = "rgba(255,255,255,0.5)";
-  ctx.lineWidth = 1.2;
+  ctx.strokeStyle = "rgba(255,255,255,0.6)";
+  ctx.lineWidth = 1.5;
   ctx.stroke();
 
-  // Sparkle
+  // Primary Sparkle
   ctx.fillStyle = "rgba(255,255,255,0.95)";
-  ctx.beginPath(); ctx.arc(x - r * 0.32, y - r * 0.42, r * 0.25, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(x - r * 0.35, y - r * 0.45, r * 0.3, 0, Math.PI * 2); ctx.fill();
 }
 
 function smallGem(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, c1: string, c2: string) {
@@ -130,27 +166,54 @@ function smallGem(ctx: CanvasRenderingContext2D, x: number, y: number, r: number
 function glow(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, color: string) {
   ctx.save();
   ctx.globalCompositeOperation = "screen";
+
+  // Layered atmospheric glow
   const g = ctx.createRadialGradient(x, y, 0, x, y, r);
-  g.addColorStop(0, color);
-  g.addColorStop(0.4, color);
+  g.addColorStop(0, shade(color, 20));
+  g.addColorStop(0.3, color);
+
+  // Ensure we don't append "44" to an already complex string like rgba(...)
+  const glowColor = color.startsWith('#') ? color + "44" : color;
+  g.addColorStop(0.7, glowColor);
   g.addColorStop(1, "transparent");
+
   ctx.fillStyle = g;
   ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+
+  // Core hot-spot
+  const g2 = ctx.createRadialGradient(x, y, 0, x, y, r * 0.4);
+  g2.addColorStop(0, "#ffffff");
+  g2.addColorStop(1, "transparent");
+  ctx.fillStyle = g2;
+  ctx.globalAlpha = 0.4;
+  ctx.beginPath(); ctx.arc(x, y, r * 0.4, 0, Math.PI * 2); ctx.fill();
+
   ctx.restore();
 }
 
 function rune(ctx: CanvasRenderingContext2D, x: number, y: number, s: number, color: string) {
   ctx.save();
   ctx.shadowColor = color;
-  ctx.shadowBlur = 6;
+  ctx.shadowBlur = 8;
   ctx.strokeStyle = color;
-  ctx.lineWidth = 1.8;
-  ctx.globalAlpha = 0.9;
+  ctx.lineWidth = 2;
+  ctx.globalAlpha = 0.95;
+
+  // Core glow
   ctx.beginPath();
   ctx.moveTo(x, y - s); ctx.lineTo(x, y + s);
   ctx.moveTo(x - s, y); ctx.lineTo(x + s, y);
-  ctx.moveTo(x - s * 0.7, y - s * 0.7); ctx.lineTo(x + s * 0.7, y + s * 0.7);
   ctx.stroke();
+
+  // Outer glow layer
+  ctx.globalCompositeOperation = "screen";
+  ctx.strokeStyle = shade(color, 40);
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(x, y - s); ctx.lineTo(x, y + s);
+  ctx.moveTo(x - s, y); ctx.lineTo(x + s, y);
+  ctx.stroke();
+
   ctx.restore();
 }
 
@@ -185,20 +248,29 @@ function drawBlade(
   ctx.beginPath(); ctx.moveTo(cx, top); ctx.lineTo(cx + bw, top + (bottom - top) * 0.18); ctx.lineTo(cx, bottom); ctx.closePath();
   ctx.fill(); ctx.restore();
 
-  // Painterly Enhancements
+  // High-fidelity material simulation
   ctx.save();
   bladePath(ctx, cx, top, bottom, bw);
   ctx.clip();
-  rimLight(ctx, "rgba(255,255,255,0.25)", 4);
+
+  // Multi-layered rim lighting
+  rimLight(ctx, "rgba(255,255,255,0.2)", 5);
+  rimLight(ctx, "rgba(255,255,255,0.1)", 2);
+
+  addGrit(ctx, 0.1);
   addNoise(ctx, 0.04);
   ctx.restore();
 
   bladePath(ctx, cx, top, bottom, bw);
   outline(ctx, outlineColor, 3.5);
 
-  // Center ridge
+  // Center ridge — dithered highlight
   ctx.beginPath(); ctx.moveTo(cx, top + 4); ctx.lineTo(cx, bottom - 4);
-  ctx.strokeStyle = "rgba(255,255,255,0.55)"; ctx.lineWidth = 1.8; ctx.stroke();
+  ctx.strokeStyle = "rgba(255,255,255,0.6)"; ctx.lineWidth = 1.5; ctx.stroke();
+
+  // Secondary softer ridge
+  ctx.beginPath(); ctx.moveTo(cx + 0.5, top + 6); ctx.lineTo(cx + 0.5, bottom - 6);
+  ctx.strokeStyle = "rgba(255,255,255,0.2)"; ctx.lineWidth = 3; ctx.stroke();
 }
 
 // ─── SWORD BLADES ────────────────────────────────────────────────────────────

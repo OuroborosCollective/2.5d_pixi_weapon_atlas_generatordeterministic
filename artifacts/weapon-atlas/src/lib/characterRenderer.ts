@@ -17,6 +17,15 @@ export const CHAR_FRAME_H  = 64;
 export const CHAR_SHEET_COLS = 4;
 export const CHAR_SHEET_ROWS = 9;
 
+import {
+  shade,
+  addGritPx,
+  rimLightPx,
+  innerShadowPx,
+  ditherFill,
+  BAYER_4X4,
+} from './canvasUtils';
+
 export type CharacterClass = 'warrior' | 'mage' | 'rogue' | 'ranger' | 'paladin' | 'berserker';
 export type CharacterRace  = 'human' | 'elf' | 'dwarf' | 'orc';
 export type ArmorTier      = 'leather' | 'iron' | 'steel' | 'mythril';
@@ -186,14 +195,6 @@ function pxOutline(ctx: CanvasRenderingContext2D, x: number, y: number, w: numbe
   ctx.fillRect(x+w-1, y,     1, h);
 }
 
-function shade(c: string, amt: number): string {
-  const n = parseInt(c.replace('#',''), 16);
-  const r = Math.max(0, Math.min(255, (n >> 16)         + amt));
-  const g = Math.max(0, Math.min(255, ((n >> 8) & 0xff) + amt));
-  const b = Math.max(0, Math.min(255, (n & 0xff)        + amt));
-  return '#' + [r, g, b].map(v => v.toString(16).padStart(2, '0')).join('');
-}
-
 // 4-tone shading palette for a base color
 function palette(c: string) {
   return {
@@ -203,14 +204,6 @@ function palette(c: string) {
     d:   shade(c, -26),   // shadow
     vd:  shade(c, -48),   // deep shadow / outline
   };
-}
-
-// Dithered row: alternates between two colors (checkerboard, 1px row)
-function ditherRow(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, c1: string, c2: string, offset = 0) {
-  for (let i = 0; i < w; i++) {
-    ctx.fillStyle = ((i + offset) % 2 === 0) ? c1 : c2;
-    ctx.fillRect((x + i)|0, y|0, 1, 1);
-  }
 }
 
 // Public API helpers
@@ -398,8 +391,12 @@ function drawHeadgear(ctx: CanvasRenderingContext2D, char: CharacterDef, cx: num
       px(ctx, hX,     headTopY + 4, hW,     5,  pal.b);
       px(ctx, hX,     headTopY + 9, hW,     3,  pal.d);
 
-      // Dithered highlight/mid transition row
-      ditherRow(ctx, hX + 1, headTopY + 3, hW - 2, pal.l, pal.b);
+      // High-fidelity material simulation
+      addGritPx(ctx, hX, headTopY, hW, 12, 0.08);
+      rimLightPx(ctx, hX, headTopY, hW, 4, 'rgba(255,255,255,0.15)');
+
+      // Dithered highlight/mid transition row using BAYER_4X4
+      ditherFill(ctx, hX + 1, headTopY + 3, hW - 2, 1, pal.l, pal.b, 8);
 
       // Cheek guards (sides — darker)
       px(ctx, hX - 2, headTopY + 3, 3, 11, pal.d);
@@ -442,7 +439,12 @@ function drawHeadgear(ctx: CanvasRenderingContext2D, char: CharacterDef, cx: num
       px(ctx, hX + 1, headTopY + 1, hW - 2, 3,  pal.l);
       px(ctx, hX,     headTopY + 4, hW,     5,  pal.b);
       px(ctx, hX,     headTopY + 9, hW,     3,  pal.d);
-      ditherRow(ctx, hX + 1, headTopY + 3, hW - 2, pal.l, pal.b);
+
+      addGritPx(ctx, hX, headTopY, hW, 12, 0.1);
+      rimLightPx(ctx, hX, headTopY, hW, 4, 'rgba(255,255,200,0.2)');
+
+      // Dithered highlight/mid transition row using BAYER_4X4
+      ditherFill(ctx, hX + 1, headTopY + 3, hW - 2, 1, pal.l, pal.b, 8);
 
       px(ctx, hX - 2, headTopY + 3, 3, 11, pal.d);
       px(ctx, hX + hW - 1, headTopY + 3, 3, 11, pal.vd);
@@ -495,7 +497,7 @@ function drawHeadgear(ctx: CanvasRenderingContext2D, char: CharacterDef, cx: num
       px(ctx, cx + 4, brimY - 11,  1, 6, pal.d);
 
       // Dither transition between steps
-      ditherRow(ctx, cx - 5, brimY - 6, 10, pal.b, pal.d);
+      ditherFill(ctx, cx - 5, brimY - 6, 10, 1, pal.b, pal.d, 8);
 
       // Cone step 3 (upper, 6px wide)
       px(ctx, cx - 3, brimY - 18, 6, 1, pal.hi);
@@ -503,7 +505,7 @@ function drawHeadgear(ctx: CanvasRenderingContext2D, char: CharacterDef, cx: num
       px(ctx, cx - 3, brimY - 17, 1, 6, pal.l);
       px(ctx, cx + 2, brimY - 17, 1, 6, pal.d);
 
-      ditherRow(ctx, cx - 3, brimY - 12, 6, pal.b, pal.d);
+      ditherFill(ctx, cx - 3, brimY - 12, 6, 1, pal.b, pal.d, 8);
 
       // Tip
       px(ctx, cx - 1, brimY - 22, 2, 5, shade(hc, 10));
@@ -667,9 +669,21 @@ export function drawTorsoArmor(
     ctx.fillStyle = rowC;
     ctx.fillRect(rx_, ry_, rw_, 1);
 
-    // Dithered transition rows
-    if (row === 2) ditherRow(ctx, rx_, ry_, rw_, pal.l, pal.b);
-    if (row === Math.round(totalRows * 0.65)) ditherRow(ctx, rx_, ry_, rw_, pal.b, pal.d);
+    // High-fidelity material simulation
+    if (row > 2 && row < totalRows - 2) {
+      addGritPx(ctx, rx_, ry_, rw_, 1, 0.08);
+      rimLightPx(ctx, rx_, ry_, 1, 1, 'rgba(255,255,255,0.15)');
+      innerShadowPx(ctx, rx_ + rw_ - 1, ry_, 1, 1, 'rgba(0,0,0,0.15)');
+    }
+
+    // Dithered transition rows using BAYER_4X4 logic
+    if (row === 1) {
+      ditherFill(ctx, rx_, ry_, rw_, 1, pal.hi, pal.l, 8);
+    } else if (row === Math.round(totalRows * 0.22)) {
+      ditherFill(ctx, rx_, ry_, rw_, 1, pal.l, pal.b, 8);
+    } else if (row === Math.round(totalRows * 0.68)) {
+      ditherFill(ctx, rx_, ry_, rw_, 1, pal.b, pal.d, 8);
+    }
 
     // Right-side shadow strip
     if (row >= 4 && row < totalRows - 1) {
@@ -796,8 +810,8 @@ function drawMageRobe(
     else               rowC = pal.d;
     ctx.fillStyle = rowC;
     ctx.fillRect(rx_, robeTopY + row, rw_, 1);
-    if (row === 2) ditherRow(ctx, rx_, robeTopY + row, rw_, pal.l, pal.b);
-    if (row === 9) ditherRow(ctx, rx_, robeTopY + row, rw_, pal.b, pal.d);
+    if (row === 2) ditherFill(ctx, rx_, robeTopY + row, rw_, 1, pal.l, pal.b, 8);
+    if (row === 9) ditherFill(ctx, rx_, robeTopY + row, rw_, 1, pal.b, pal.d, 8);
     // Right shadow
     ctx.fillStyle = pal.d;
     ctx.fillRect(rx_ + rw_ - 2, robeTopY + row, 2, 1);
@@ -912,6 +926,11 @@ export function drawArms(
     else               c = pal.d;
     ctx.fillStyle = c;
     ctx.fillRect(ax, armY + row, armW, 1);
+
+    // Material simulation
+    addGritPx(ctx, ax, armY + row, armW, 1, 0.05);
+    rimLightPx(ctx, ax, armY + row, 1, 1, 'rgba(255,255,255,0.2)');
+    innerShadowPx(ctx, ax + armW - 1, armY + row, 1, 1, 'rgba(0,0,0,0.2)');
   }
   // Left-lit vertical edge
   ctx.fillStyle = pal.l;
@@ -921,7 +940,7 @@ export function drawArms(
   ctx.fillRect(ax + armW - 1, armY + 2, 1, armH - 3);
 
   // Dither top highlight/mid transition
-  ditherRow(ctx, ax, armY + 2, armW, pal.l, pal.b, isLeft ? 0 : 1);
+  ditherFill(ctx, ax, armY + 2, armW, 1, pal.l, pal.b, 8);
 
   // Gauntlet/hand (skin exposed at wrist)
   const handY = armY + armH;
@@ -959,6 +978,10 @@ export function drawLegs(
       else               c = pal.vd; // back of knee shadow
       ctx.fillStyle = c;
       ctx.fillRect(lx, ly + row, legW, 1);
+
+      // Material simulation
+      addGritPx(ctx, lx, ly + row, legW, 1, 0.06);
+      rimLightPx(ctx, lx, ly + row, 1, 1, 'rgba(255,255,255,0.15)');
     }
     // Knee cap highlight (1/3 down)
     const kneeRow = Math.round(legH * 0.28);
@@ -1007,10 +1030,10 @@ function drawShield(ctx: CanvasRenderingContext2D, char: CharacterDef, shieldX: 
   // Top rectangular section (13×14)
   // 4-tone top-lit shading
   px(ctx, shieldX,     shieldY,     13, 2, pal.hi);    // specular top
-  px(ctx, shieldX,     shieldY + 2, 13, 4, pal.l);
-  ditherRow(ctx, shieldX, shieldY + 5, 13, pal.l, pal.b);
-  px(ctx, shieldX,     shieldY + 6, 13, 5, pal.b);
-  ditherRow(ctx, shieldX, shieldY + 10, 13, pal.b, pal.d);
+  px(ctx, shieldX,     shieldY + 2, 13, 3, pal.l);
+  ditherFill(ctx, shieldX, shieldY + 5, 13, 1, pal.l, pal.b, 8);
+  px(ctx, shieldX,     shieldY + 6, 13, 4, pal.b);
+  ditherFill(ctx, shieldX, shieldY + 10, 13, 1, pal.b, pal.d, 8);
   px(ctx, shieldX,     shieldY + 11, 13, 3, pal.d);
 
   // Right shadow strip
@@ -1147,7 +1170,7 @@ export function drawWeapon(
         px(ctx, stx + 1, sty + 7, 2, 38, pal.vd);
         px(ctx, stx + 1, sty + 7, 1, 38, pal.d);
         // Shaft highlight
-        ditherRow(ctx, stx + 1, sty + 8, 1, pal.d, shade(pal.d, 10), 0);
+        ditherFill(ctx, stx + 1, sty + 8, 1, 1, pal.d, shade(pal.d, 10), 8);
         // Orb — glowing sphere
         px(ctx, stx - 1, sty,     10, 8, pal.b);       // outer ring
         px(ctx, stx,     sty - 1, 8,  2, pal.b);       // top arc
@@ -1602,7 +1625,7 @@ function drawEast(
     px(ctx, cx - 7, by + 24, 14, 2, tp.l);
     px(ctx, cx - 7, by + 25, 2, m.torsoH - 2, tp.l);
     px(ctx, cx + 5, by + 25, 2, m.torsoH - 2, tp.d);
-    ditherRow(ctx, cx - 7, by + 24 + 3, 14, tp.l, tp.b);
+    ditherFill(ctx, cx - 7, by + 24 + 3, 14, 1, tp.l, tp.b, 8);
     px(ctx, cx - 8, by + 24 + m.torsoH, 16, 4, arm.blt);
     pxOutline(ctx, cx - 7, by + 24, 14, m.torsoH, tp.vd);
   }
@@ -1666,7 +1689,7 @@ function drawEast(
   px(ctx, fax2, fay2, 6, 13, faPal.b);
   px(ctx, fax2, fay2, 1, 13, faPal.l);
   px(ctx, fax2, fay2, 6, 2, faPal.l);
-  ditherRow(ctx, fax2, fay2 + 2, 6, faPal.l, faPal.b);
+  ditherFill(ctx, fax2, fay2 + 2, 6, 1, faPal.l, faPal.b, 8);
   px(ctx, fax2 + 4, fay2 + 3, 2, 9, faPal.d);
   px(ctx, fax2, fay2 + 13, 6, 4, shade(char.skinColor, -12));
   pxOutline(ctx, fax2, fay2, 6, 17, faPal.vd);
