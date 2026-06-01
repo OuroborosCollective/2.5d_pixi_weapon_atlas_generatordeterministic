@@ -17,6 +17,8 @@ export const CHAR_FRAME_H  = 64;
 export const CHAR_SHEET_COLS = 4;
 export const CHAR_SHEET_ROWS = 9;
 
+import { addGritPx, rimLightPx, innerShadowPx, applyBayerDitherRow } from "./canvasUtils";
+
 export type CharacterClass = 'warrior' | 'mage' | 'rogue' | 'ranger' | 'paladin' | 'berserker';
 export type CharacterRace  = 'human' | 'elf' | 'dwarf' | 'orc';
 export type ArmorTier      = 'leather' | 'iron' | 'steel' | 'mythril';
@@ -59,23 +61,23 @@ export interface CharacterDef {
 // ─── COLOR PALETTES ───────────────────────────────────────────────────────────
 
 const sk = {
-  fair: '#F2C59E', tan: '#C8824A', dark: '#8B5020',
-  pale: '#F8EDE0', orc: '#5C8A50', dwarf: '#C27840',
+  fair: '#F8CEB3', tan: '#D99163', dark: '#7A431D',
+  pale: '#FFF5E6', orc: '#537F46', dwarf: '#BF6B30',
 };
 const hr = {
-  brown: '#6B3000', black: '#1C1010', blonde: '#D8B828',
-  red: '#A82800', white: '#E8E8F0', silver: '#9898B8',
-  green: '#246020',
+  brown: '#5C2400', black: '#0F0808', blonde: '#EBC235',
+  red: '#B82000', white: '#FFFFFF', silver: '#AAB0C0',
+  green: '#1B4D16',
 };
 const ey = {
-  brown: '#6C3818', blue: '#1858A0', green: '#287028',
-  purple: '#5828A0', gold: '#C09010', red: '#A01010',
+  brown: '#5D2E12', blue: '#0F4B8A', green: '#1D5C1D',
+  purple: '#4E1D8F', gold: '#D9A114', red: '#B30F0F',
 };
 const AT = {
-  leather: { b: '#8B6010', d: '#6B4808', l: '#AA7A16', blt: '#4A2E06' },
-  iron:    { b: '#586070', d: '#404858', l: '#7090A8', blt: '#303848' },
-  steel:   { b: '#8CA8C0', d: '#6080A0', l: '#B8CED8', blt: '#486070' },
-  mythril: { b: '#50A0C8', d: '#3070B0', l: '#80C0E8', blt: '#185878' },
+  leather: { b: '#8B6010', d: '#4A2E06', l: '#D49F21', blt: '#2E1A04' },
+  iron:    { b: '#586070', d: '#2D3440', l: '#8EADC4', blt: '#1D222B' },
+  steel:   { b: '#8CA8C0', d: '#3D5466', l: '#D4E2F0', blt: '#2D3B47' },
+  mythril: { b: '#50A0C8', d: '#1A4D70', l: '#A0E6FF', blt: '#0D3650' },
 };
 
 // ─── CHARACTER PRESETS ────────────────────────────────────────────────────────
@@ -205,12 +207,9 @@ function palette(c: string) {
   };
 }
 
-// Dithered row: alternates between two colors (checkerboard, 1px row)
-function ditherRow(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, c1: string, c2: string, offset = 0) {
-  for (let i = 0; i < w; i++) {
-    ctx.fillStyle = ((i + offset) % 2 === 0) ? c1 : c2;
-    ctx.fillRect((x + i)|0, y|0, 1, 1);
-  }
+// Dithered row: uses Bayer 4x4 matrix for smoother material simulation
+function ditherRow(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, c1: string, c2: string, threshold = 8) {
+  applyBayerDitherRow(ctx, x, y, w, c1, c2, threshold);
 }
 
 // Public API helpers
@@ -399,7 +398,7 @@ function drawHeadgear(ctx: CanvasRenderingContext2D, char: CharacterDef, cx: num
       px(ctx, hX,     headTopY + 9, hW,     3,  pal.d);
 
       // Dithered highlight/mid transition row
-      ditherRow(ctx, hX + 1, headTopY + 3, hW - 2, pal.l, pal.b);
+      ditherRow(ctx, hX + 1, headTopY + 3, hW - 2, pal.l, pal.b, 6);
 
       // Cheek guards (sides — darker)
       px(ctx, hX - 2, headTopY + 3, 3, 11, pal.d);
@@ -495,7 +494,7 @@ function drawHeadgear(ctx: CanvasRenderingContext2D, char: CharacterDef, cx: num
       px(ctx, cx + 4, brimY - 11,  1, 6, pal.d);
 
       // Dither transition between steps
-      ditherRow(ctx, cx - 5, brimY - 6, 10, pal.b, pal.d);
+      ditherRow(ctx, cx - 5, brimY - 6, 10, pal.b, pal.d, 10);
 
       // Cone step 3 (upper, 6px wide)
       px(ctx, cx - 3, brimY - 18, 6, 1, pal.hi);
@@ -668,8 +667,8 @@ export function drawTorsoArmor(
     ctx.fillRect(rx_, ry_, rw_, 1);
 
     // Dithered transition rows
-    if (row === 2) ditherRow(ctx, rx_, ry_, rw_, pal.l, pal.b);
-    if (row === Math.round(totalRows * 0.65)) ditherRow(ctx, rx_, ry_, rw_, pal.b, pal.d);
+    if (row === 2) ditherRow(ctx, rx_, ry_, rw_, pal.l, pal.b, 6);
+    if (row === Math.round(totalRows * 0.65)) ditherRow(ctx, rx_, ry_, rw_, pal.b, pal.d, 10);
 
     // Right-side shadow strip
     if (row >= 4 && row < totalRows - 1) {
@@ -763,6 +762,11 @@ export function drawTorsoArmor(
   px(ctx, tx - 2, beltY - 1, w + 4, 1, out);
   px(ctx, tx - 2, beltY + 4, w + 4, 1, out);
 
+  // High-fidelity volume & texture
+  rimLightPx(ctx, tx, torsoY, w, h, "rgba(255,255,255,0.2)");
+  innerShadowPx(ctx, tx, torsoY, w, h, "rgba(0,0,0,0.2)");
+  addGritPx(ctx, tx, torsoY, w, h, 0.08, 12345);
+
   // Torso outer outline
   pxOutline(ctx, tx, torsoY, w, h, out);
 }
@@ -796,8 +800,8 @@ function drawMageRobe(
     else               rowC = pal.d;
     ctx.fillStyle = rowC;
     ctx.fillRect(rx_, robeTopY + row, rw_, 1);
-    if (row === 2) ditherRow(ctx, rx_, robeTopY + row, rw_, pal.l, pal.b);
-    if (row === 9) ditherRow(ctx, rx_, robeTopY + row, rw_, pal.b, pal.d);
+    if (row === 2) ditherRow(ctx, rx_, robeTopY + row, rw_, pal.l, pal.b, 6);
+    if (row === 9) ditherRow(ctx, rx_, robeTopY + row, rw_, pal.b, pal.d, 10);
     // Right shadow
     ctx.fillStyle = pal.d;
     ctx.fillRect(rx_ + rw_ - 2, robeTopY + row, 2, 1);
@@ -930,6 +934,11 @@ export function drawArms(
   px(ctx, ax, handY, armW, 1, skinPal.l);        // wrist highlight
   px(ctx, ax + armW - 1, handY + 1, 1, 2, skinPal.d); // wrist shadow
 
+  // Volumetric enhancements
+  rimLightPx(ctx, ax, armY, armW, armH, "rgba(255,255,255,0.15)");
+  innerShadowPx(ctx, ax, armY, armW, armH, "rgba(0,0,0,0.15)");
+  addGritPx(ctx, ax, armY, armW, armH, 0.06, 999);
+
   // Outline
   pxOutline(ctx, ax, armY, armW, armH + 4, pal.vd);
 }
@@ -980,6 +989,11 @@ export function drawLegs(
     // Boot toe (extended, adds depth)
     px(ctx, lx - 2, ly + legH + 4, legW + 4, 3, shade(bootC, -6));
     px(ctx, lx - 2, ly + legH + 4, legW + 4, 1, bootPal.l);
+    // Volumetric enhancements
+    rimLightPx(ctx, lx, ly, legW, legH, "rgba(255,255,255,0.15)");
+    innerShadowPx(ctx, lx, ly, legW, legH, "rgba(0,0,0,0.15)");
+    addGritPx(ctx, lx, ly, legW, legH, 0.07, 888);
+
     // Outer outline
     pxOutline(ctx, lx, ly, legW, legH, pal.vd);
     px(ctx, lx - 1, ly + legH, 1, 7, bootPal.vd);      // boot left
