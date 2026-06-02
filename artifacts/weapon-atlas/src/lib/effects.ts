@@ -1,4 +1,6 @@
 export type RarityLevel = "common" | "uncommon" | "rare" | "epic" | "legendary" | "mythic";
+import { coordHash } from "./canvasUtils";
+
 export type ElementType = "none" | "fire" | "ice" | "electro" | "wind";
 
 const CX = 64, CY = 64, SIZE = 128;
@@ -199,38 +201,60 @@ export function drawElementEffect(ctx: CanvasRenderingContext2D, element: Elemen
   ctx.save();
   switch (element) {
     case "fire": {
-      // Atmospheric fire effect with deeper color depth and multi-layered glow
+      // High-fidelity fire effect with multi-layered rotation and deterministic variation
       ctx.globalCompositeOperation = "screen";
-      const fg = ctx.createRadialGradient(CX, SIZE - 10, 10, CX, SIZE - 5, 50);
-      fg.addColorStop(0, "rgba(255,80,0,0.5)");
-      fg.addColorStop(0.6, "rgba(180,40,0,0.2)");
+
+      // Bottom glow
+      const fg = ctx.createRadialGradient(CX, SIZE - 15, 10, CX, SIZE - 10, 60);
+      fg.addColorStop(0, "rgba(255,100,0,0.6)");
+      fg.addColorStop(0.5, "rgba(200,40,0,0.3)");
       fg.addColorStop(1, "transparent");
       ctx.fillStyle = fg; ctx.fillRect(0, 0, SIZE, SIZE);
 
       const flames: [number, number, number][] = [
-        [CX - 18, 90, 24], [CX - 6, 75, 32], [CX + 4, 80, 28], [CX + 16, 88, 22],
-        [CX - 28, 98, 18], [CX + 26, 96, 16]
+        [CX - 20, 95, 30], [CX - 8, 80, 40], [CX + 6, 85, 35], [CX + 20, 92, 28],
+        [CX - 32, 100, 22], [CX + 30, 98, 20], [CX, 70, 45]
       ];
-      for (const [fx, fy, fh] of flames) {
-        const lg = ctx.createLinearGradient(fx, fy, fx, fy - fh);
-        lg.addColorStop(0, "rgba(255,40,0,0.9)");
-        lg.addColorStop(0.4, "rgba(255,120,0,0.7)");
-        lg.addColorStop(1, "rgba(255,200,0,0)");
-        ctx.beginPath();
-        ctx.moveTo(fx - 5, fy);
-        ctx.bezierCurveTo(fx - 8, fy - fh * 0.4, fx + 6, fy - fh * 0.7, fx, fy - fh);
-        ctx.bezierCurveTo(fx - 5, fy - fh * 0.7, fx + 8, fy - fh * 0.3, fx + 5, fy);
-        ctx.closePath();
-        ctx.fillStyle = lg; ctx.shadowColor = "#ff3300"; ctx.shadowBlur = 10; ctx.fill();
-      }
 
-      const sparks: [number, number, number][] = [
-        [CX - 22, 68, 2.2], [CX + 20, 60, 1.8], [CX - 10, 52, 2.5], [CX + 8, 45, 2],
-        [CX - 30, 78, 1.8], [CX + 28, 72, 2.2], [CX + 2, 38, 1.5]
-      ];
-      ctx.fillStyle = "#ffcc00"; ctx.shadowColor = "#ff9900"; ctx.shadowBlur = 8;
-      for (const [ex, ey, er] of sparks) {
-        ctx.beginPath(); ctx.arc(ex, ey, er, 0, Math.PI * 2); ctx.fill();
+      flames.forEach(([fx, fy, fh], i) => {
+        ctx.save();
+        // Deterministic rotation based on index
+        const angle = (coordHash(i, 0, 10) - 0.5) * 0.2;
+        ctx.translate(fx, fy);
+        ctx.rotate(angle);
+
+        const lg = ctx.createLinearGradient(0, 0, 0, -fh);
+        lg.addColorStop(0, "rgba(255,30,0,0.95)");
+        lg.addColorStop(0.3, "rgba(255,120,0,0.85)");
+        lg.addColorStop(0.6, "rgba(255,200,50,0.4)");
+        lg.addColorStop(1, "rgba(255,255,255,0)");
+
+        ctx.beginPath();
+        ctx.moveTo(-6, 0);
+        ctx.bezierCurveTo(-10, -fh * 0.4, 8, -fh * 0.7, 0, -fh);
+        ctx.bezierCurveTo(-6, -fh * 0.7, 10, -fh * 0.3, 6, 0);
+        ctx.closePath();
+
+        ctx.fillStyle = lg;
+        ctx.shadowColor = "#ff4400";
+        ctx.shadowBlur = 12;
+        ctx.fill();
+        ctx.restore();
+      });
+
+      // Shimmering sparks with deterministic jitter
+      for (let i = 0; i < 15; i++) {
+        const sx = CX + (coordHash(i, 1, 11) - 0.5) * 80;
+        const sy = 40 + coordHash(i, 2, 12) * 60;
+        const sr = 1 + coordHash(i, 3, 13) * 2;
+        const opacity = 0.4 + coordHash(i, 4, 14) * 0.6;
+
+        ctx.fillStyle = `rgba(255, ${200 + coordHash(i, 5, 15) * 55}, 0, ${opacity})`;
+        ctx.shadowColor = "#ffaa00";
+        ctx.shadowBlur = 6;
+        ctx.beginPath();
+        ctx.arc(sx, sy, sr, 0, Math.PI * 2);
+        ctx.fill();
       }
       break;
     }

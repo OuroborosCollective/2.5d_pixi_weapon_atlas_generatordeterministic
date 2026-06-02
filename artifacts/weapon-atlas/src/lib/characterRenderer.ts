@@ -12,6 +12,8 @@
 //   - Clear class silhouettes readable at any scale
 //   - Outline only on outer edges; pixel clusters ≥2px (no isolated dots)
 
+import { addGritPx, rimLightPx, innerShadowPx } from "./canvasUtils";
+
 export const CHAR_FRAME_W  = 48;
 export const CHAR_FRAME_H  = 64;
 export const CHAR_SHEET_COLS = 4;
@@ -269,6 +271,9 @@ export function drawHead(ctx: CanvasRenderingContext2D, cx: number, cy: number, 
     ctx.fillStyle = rowC;
     ctx.fillRect(px_, py_, pw_, 1);
 
+    // High-fidelity material grit
+    addGritPx(ctx, px_, py_, pw_, 1, 0.12, 0.05, row);
+
     // Left cheek highlight band (top-left lit)
     if (t > 0.25 && t < 0.60) {
       ctx.fillStyle = pal.l;
@@ -397,6 +402,7 @@ function drawHeadgear(ctx: CanvasRenderingContext2D, char: CharacterDef, cx: num
       px(ctx, hX + 1, headTopY + 1, hW - 2, 3,  pal.l);
       px(ctx, hX,     headTopY + 4, hW,     5,  pal.b);
       px(ctx, hX,     headTopY + 9, hW,     3,  pal.d);
+      addGritPx(ctx, hX, headTopY, hW, 12, 0.15, 0.06);
 
       // Dithered highlight/mid transition row
       ditherRow(ctx, hX + 1, headTopY + 3, hW - 2, pal.l, pal.b);
@@ -442,6 +448,7 @@ function drawHeadgear(ctx: CanvasRenderingContext2D, char: CharacterDef, cx: num
       px(ctx, hX + 1, headTopY + 1, hW - 2, 3,  pal.l);
       px(ctx, hX,     headTopY + 4, hW,     5,  pal.b);
       px(ctx, hX,     headTopY + 9, hW,     3,  pal.d);
+      addGritPx(ctx, hX, headTopY, hW, 12, 0.12, 0.05);
       ditherRow(ctx, hX + 1, headTopY + 3, hW - 2, pal.l, pal.b);
 
       px(ctx, hX - 2, headTopY + 3, 3, 11, pal.d);
@@ -502,6 +509,7 @@ function drawHeadgear(ctx: CanvasRenderingContext2D, char: CharacterDef, cx: num
       px(ctx, cx - 3, brimY - 17, 6, 6, pal.b);
       px(ctx, cx - 3, brimY - 17, 1, 6, pal.l);
       px(ctx, cx + 2, brimY - 17, 1, 6, pal.d);
+      addGritPx(ctx, cx - 11, brimY - 22, 22, 24, 0.1, 0.04);
 
       ditherRow(ctx, cx - 3, brimY - 12, 6, pal.b, pal.d);
 
@@ -542,6 +550,7 @@ function drawHeadgear(ctx: CanvasRenderingContext2D, char: CharacterDef, cx: num
       px(ctx, hX,     headTopY,     hW,     2, pal.l);   // top lit edge
       px(ctx, hX - 1, headTopY + 2, hW + 2, 9, pal.b);
       px(ctx, hX - 1, headTopY + 2, hW + 2, 1, pal.l);  // highlight rim
+      addGritPx(ctx, hX - 1, headTopY + 2, hW + 2, 9, 0.12, 0.05);
       px(ctx, hX - 2, headTopY + 4, 2,      8, pal.d);  // left deep shadow
       px(ctx, hX + hW + 1, headTopY + 4, 2, 8, pal.vd); // right deeper shadow
       // Hood peak
@@ -569,6 +578,7 @@ function drawHeadgear(ctx: CanvasRenderingContext2D, char: CharacterDef, cx: num
       px(ctx, hX,     headTopY + 2, hW, 9, pal.b);
       px(ctx, hX - 1, headTopY + 4, 2,  7, pal.d);  // left shadow
       px(ctx, hX + hW, headTopY + 4, 2, 7, pal.vd); // right deeper
+      addGritPx(ctx, hX - 2, headTopY, hW + 4, 14, 0.1, 0.04);
       // Peak
       px(ctx, cx - 2, headTopY - 3, 4, 4, pal.b);
       px(ctx, cx - 1, headTopY - 4, 2, 2, pal.l);
@@ -603,6 +613,7 @@ function drawHeadgear(ctx: CanvasRenderingContext2D, char: CharacterDef, cx: num
       px(ctx, cx + 1, headTopY + 7, 3, 3, ac);
       px(ctx, cx + 2, headTopY + 8, 1, 1, shade(ac, 50));
       pxOutline(ctx, cx - hw - 2, headTopY + 6, hw * 2 + 4, 5, pal.vd);
+      addGritPx(ctx, cx - hw - 2, headTopY + 6, hw * 2 + 4, 5, 0.15, 0.06);
 
       // Left horn (curved, 3 segments)
       px(ctx, cx - hw - 5, headTopY + 4, 4, 3, hornC);
@@ -666,6 +677,9 @@ export function drawTorsoArmor(
 
     ctx.fillStyle = rowC;
     ctx.fillRect(rx_, ry_, rw_, 1);
+
+    // High-fidelity material grit for armor
+    addGritPx(ctx, rx_, ry_, rw_, 1, 0.18, 0.08, row);
 
     // Dithered transition rows
     if (row === 2) ditherRow(ctx, rx_, ry_, rw_, pal.l, pal.b);
@@ -765,6 +779,10 @@ export function drawTorsoArmor(
 
   // Torso outer outline
   pxOutline(ctx, tx, torsoY, w, h, out);
+
+  // 2.5D Depth Enhancement
+  rimLightPx(ctx, tx, torsoY, w, h, "rgba(255,255,255,0.2)");
+  innerShadowPx(ctx, tx, torsoY, w, h, "rgba(0,0,0,0.15)");
 }
 
 // ─── BODY: MAGE ROBE (extra wide, with fold shading) ─────────────────────────
@@ -796,6 +814,7 @@ function drawMageRobe(
     else               rowC = pal.d;
     ctx.fillStyle = rowC;
     ctx.fillRect(rx_, robeTopY + row, rw_, 1);
+    addGritPx(ctx, rx_, robeTopY + row, rw_, 1, 0.1, 0.04, row);
     if (row === 2) ditherRow(ctx, rx_, robeTopY + row, rw_, pal.l, pal.b);
     if (row === 9) ditherRow(ctx, rx_, robeTopY + row, rw_, pal.b, pal.d);
     // Right shadow
@@ -846,6 +865,7 @@ function drawMageRobe(
 
     ctx.fillStyle = shade(rc, foldShade);
     ctx.fillRect(rx_, ry_, rw_, 1);
+    addGritPx(ctx, rx_, ry_, rw_, 1, 0.12, 0.05, i);
 
     // Left lit edge / right shadow edge
     ctx.fillStyle = shade(rc, 20);
@@ -880,6 +900,7 @@ function drawMageRobe(
     px(ctx, cx - 8, bty, 7, 5, bootC);
     px(ctx, cx - 8, bty, 7, 1, bpal2.l);
     px(ctx, cx - 8, bty + 4, 7, 1, bpal2.d);
+    addGritPx(ctx, cx - 8, bty, 16, 5, 0.1, 0.04);
     pxOutline(ctx, cx - 8, bty, 7, 5, bpal2.vd);
     // Right boot (in front, slightly lighter)
     px(ctx, cx + 1, bty, 7, 5, shade(bootC, 10));
@@ -912,6 +933,7 @@ export function drawArms(
     else               c = pal.d;
     ctx.fillStyle = c;
     ctx.fillRect(ax, armY + row, armW, 1);
+    addGritPx(ctx, ax, armY + row, armW, 1, 0.12, 0.05, row);
   }
   // Left-lit vertical edge
   ctx.fillStyle = pal.l;
@@ -959,6 +981,7 @@ export function drawLegs(
       else               c = pal.vd; // back of knee shadow
       ctx.fillStyle = c;
       ctx.fillRect(lx, ly + row, legW, 1);
+      addGritPx(ctx, lx, ly + row, legW, 1, 0.12, 0.05, row);
     }
     // Knee cap highlight (1/3 down)
     const kneeRow = Math.round(legH * 0.28);
@@ -1448,6 +1471,7 @@ function drawSouth(
 
   // ── Headgear ──
   drawHeadgear(ctx, char, cx, by, m.headW >> 1);
+  rimLightPx(ctx, cx - (m.headW >> 1) - 2, by + 5, m.headW + 4, 12, "rgba(255,255,255,0.15)");
 
   // ── Face (eyes + brows + nose + mouth) ──
   const eyeY = by + 12;
