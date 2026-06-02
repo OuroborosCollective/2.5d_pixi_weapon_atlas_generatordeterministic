@@ -17,6 +17,8 @@ export const CHAR_FRAME_H  = 64;
 export const CHAR_SHEET_COLS = 4;
 export const CHAR_SHEET_ROWS = 9;
 
+import { addGritPx, rimLightPx, innerShadowPx, BAYER_4X4, shade as utilsShade } from './canvasUtils';
+
 export type CharacterClass = 'warrior' | 'mage' | 'rogue' | 'ranger' | 'paladin' | 'berserker';
 export type CharacterRace  = 'human' | 'elf' | 'dwarf' | 'orc';
 export type ArmorTier      = 'leather' | 'iron' | 'steel' | 'mythril';
@@ -187,11 +189,7 @@ function pxOutline(ctx: CanvasRenderingContext2D, x: number, y: number, w: numbe
 }
 
 function shade(c: string, amt: number): string {
-  const n = parseInt(c.replace('#',''), 16);
-  const r = Math.max(0, Math.min(255, (n >> 16)         + amt));
-  const g = Math.max(0, Math.min(255, ((n >> 8) & 0xff) + amt));
-  const b = Math.max(0, Math.min(255, (n & 0xff)        + amt));
-  return '#' + [r, g, b].map(v => v.toString(16).padStart(2, '0')).join('');
+  return utilsShade(c, amt);
 }
 
 // 4-tone shading palette for a base color
@@ -205,11 +203,17 @@ function palette(c: string) {
   };
 }
 
-// Dithered row: alternates between two colors (checkerboard, 1px row)
-function ditherRow(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, c1: string, c2: string, offset = 0) {
+// Dithered row: alternates between two colors (using 4x4 Bayer matrix)
+function ditherRow(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, c1: string, c2: string, _offset = 0) {
   for (let i = 0; i < w; i++) {
-    ctx.fillStyle = ((i + offset) % 2 === 0) ? c1 : c2;
-    ctx.fillRect((x + i)|0, y|0, 1, 1);
+    const px = (x + i) | 0;
+    const py = y | 0;
+    // Use safe modulo for negative coordinates
+    const row = ((py % 4) + 4) % 4;
+    const col = ((px % 4) + 4) % 4;
+    const threshold = BAYER_4X4[row][col] / 16;
+    ctx.fillStyle = (threshold < 0.5) ? c1 : c2;
+    ctx.fillRect(px, py, 1, 1);
   }
 }
 
@@ -633,6 +637,10 @@ export function drawTorsoArmor(
   const pal  = palette(armorBase);
   const out  = pal.vd;
 
+  rimLightPx(ctx, tx, torsoY, w, h, "rgba(255,255,255,0.25)");
+  innerShadowPx(ctx, tx, torsoY, w, h, "rgba(0,0,0,0.2)");
+  addGritPx(ctx, tx, torsoY, w, h, 0.08);
+
   // ── Draw torso row-by-row with trapezoid shape ──
   // Rows 0-3: wide pauldron area; rows 4-10: chest; rows 11+: slight waist taper
   const totalRows = h;
@@ -779,6 +787,8 @@ function drawMageRobe(
   const ac   = char.accentColor;
   const robeTopY = baseY + 24;
 
+  addGritPx(ctx, (cx - 9)|0, robeTopY, 18, 36, 0.05);
+
   // ── Upper robe / bodice ──
   const uw = 18; // bodice width
   const utx = (cx - (uw >> 1)) | 0;
@@ -902,6 +912,9 @@ export function drawArms(
   const pal = palette(armorColor);
   const ax  = isLeft ? (cx - armW - backArmOffset) : (cx + frontArmOffset);
 
+  rimLightPx(ctx, ax, armY, armW, armH, "rgba(255,255,255,0.15)");
+  addGritPx(ctx, ax, armY, armW, armH, 0.06);
+
   // Arm body — 4-tone left-lit
   for (let row = 0; row < armH; row++) {
     const t = row / (armH - 1);
@@ -948,6 +961,9 @@ export function drawLegs(
   const bootPal = palette(bootC);
 
   const drawLeg = (lx: number, ly: number, isRight: boolean) => {
+    rimLightPx(ctx, lx, ly, legW, legH, "rgba(255,255,255,0.2)");
+    addGritPx(ctx, lx, ly, legW, legH, 0.07);
+
     // Thigh — top-lit
     for (let row = 0; row < legH; row++) {
       const t = row / (legH - 1);

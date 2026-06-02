@@ -10,12 +10,22 @@ function glowRim(ctx: CanvasRenderingContext2D, color: string, alpha: number, bl
   ctx.shadowColor = color;
   ctx.shadowBlur = blur;
   ctx.globalAlpha = alpha;
-  // Outer rim rect (inset so glow is visible inside the 128px tile)
-  ctx.strokeStyle = color;
-  ctx.lineWidth = spread;
+  ctx.globalCompositeOperation = "screen";
+
+  // Multi-layered gradient rim for volumetric depth
   const m = spread / 2 + 2;
+  const rectW = SIZE - m * 2;
+  const rectH = SIZE - m * 2;
+
+  const g = ctx.createLinearGradient(m, m, m + rectW, m + rectH);
+  g.addColorStop(0, color);
+  g.addColorStop(0.5, "#ffffff");
+  g.addColorStop(1, color);
+
+  ctx.strokeStyle = g;
+  ctx.lineWidth = spread;
   ctx.beginPath();
-  ctx.roundRect(m, m, SIZE - m * 2, SIZE - m * 2, 10);
+  ctx.roundRect(m, m, rectW, rectH, 10);
   ctx.stroke();
 
   // Secondary softer glow
@@ -202,26 +212,33 @@ export function drawElementEffect(ctx: CanvasRenderingContext2D, element: Elemen
       // Atmospheric fire effect with deeper color depth and multi-layered glow
       ctx.globalCompositeOperation = "screen";
       const fg = ctx.createRadialGradient(CX, SIZE - 10, 10, CX, SIZE - 5, 50);
-      fg.addColorStop(0, "rgba(255,80,0,0.5)");
-      fg.addColorStop(0.6, "rgba(180,40,0,0.2)");
+      fg.addColorStop(0, "rgba(255,80,0,0.6)");
+      fg.addColorStop(0.4, "rgba(255,150,0,0.3)");
+      fg.addColorStop(0.8, "rgba(180,40,0,0.1)");
       fg.addColorStop(1, "transparent");
       ctx.fillStyle = fg; ctx.fillRect(0, 0, SIZE, SIZE);
 
-      const flames: [number, number, number][] = [
-        [CX - 18, 90, 24], [CX - 6, 75, 32], [CX + 4, 80, 28], [CX + 16, 88, 22],
-        [CX - 28, 98, 18], [CX + 26, 96, 16]
+      const flames: [number, number, number, number][] = [
+        [CX - 18, 90, 24, 0.1], [CX - 6, 75, 32, -0.05], [CX + 4, 80, 28, 0.08], [CX + 16, 88, 22, -0.12],
+        [CX - 28, 98, 18, 0.15], [CX + 26, 96, 16, -0.1]
       ];
-      for (const [fx, fy, fh] of flames) {
-        const lg = ctx.createLinearGradient(fx, fy, fx, fy - fh);
-        lg.addColorStop(0, "rgba(255,40,0,0.9)");
-        lg.addColorStop(0.4, "rgba(255,120,0,0.7)");
-        lg.addColorStop(1, "rgba(255,200,0,0)");
+      for (const [fx, fy, fh, angle] of flames) {
+        ctx.save();
+        ctx.translate(fx, fy);
+        ctx.rotate(angle);
+        const lg = ctx.createLinearGradient(0, 0, 0, -fh);
+        lg.addColorStop(0, "rgba(255,40,0,0.95)");
+        lg.addColorStop(0.3, "rgba(255,120,0,0.85)");
+        lg.addColorStop(0.6, "rgba(255,200,0,0.4)");
+        lg.addColorStop(1, "rgba(255,255,255,0)");
+
         ctx.beginPath();
-        ctx.moveTo(fx - 5, fy);
-        ctx.bezierCurveTo(fx - 8, fy - fh * 0.4, fx + 6, fy - fh * 0.7, fx, fy - fh);
-        ctx.bezierCurveTo(fx - 5, fy - fh * 0.7, fx + 8, fy - fh * 0.3, fx + 5, fy);
+        ctx.moveTo(-6, 0);
+        ctx.bezierCurveTo(-10, -fh * 0.4, 8, -fh * 0.7, 0, -fh);
+        ctx.bezierCurveTo(-7, -fh * 0.7, 10, -fh * 0.3, 6, 0);
         ctx.closePath();
-        ctx.fillStyle = lg; ctx.shadowColor = "#ff3300"; ctx.shadowBlur = 10; ctx.fill();
+        ctx.fillStyle = lg; ctx.shadowColor = "#ff3300"; ctx.shadowBlur = 12; ctx.fill();
+        ctx.restore();
       }
 
       const sparks: [number, number, number][] = [
