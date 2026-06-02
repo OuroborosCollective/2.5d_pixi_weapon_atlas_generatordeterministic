@@ -1,3 +1,5 @@
+import { coordHash, rimLightPx, addGritPx } from "./canvasUtils";
+
 export interface WeaponPart {
   id: string;
   name: string;
@@ -35,9 +37,10 @@ function addNoise(ctx: CanvasRenderingContext2D, opacity = 0.05) {
   ctx.save();
   ctx.globalCompositeOperation = "overlay";
   for (let i = 0; i < 500; i++) {
-    const x = Math.random() * 128;
-    const y = Math.random() * 128;
-    ctx.fillStyle = Math.random() > 0.5 ? `rgba(255,255,255,${opacity})` : `rgba(0,0,0,${opacity})`;
+    // Deterministic noise using coordinate hashing
+    const x = (coordHash(i, 0, 1) * 128) | 0;
+    const y = (coordHash(0, i, 2) * 128) | 0;
+    ctx.fillStyle = coordHash(x, y, 3) > 0.5 ? `rgba(255,255,255,${opacity})` : `rgba(0,0,0,${opacity})`;
     ctx.fillRect(x, y, 1, 1);
   }
   ctx.restore();
@@ -46,9 +49,9 @@ function addNoise(ctx: CanvasRenderingContext2D, opacity = 0.05) {
 function addGrit(ctx: CanvasRenderingContext2D, opacity = 0.12) {
   ctx.save();
   for (let i = 0; i < 40; i++) {
-    const x = Math.random() * 128;
-    const y = Math.random() * 128;
-    const s = 0.5 + Math.random() * 1.5;
+    const x = (coordHash(i, 7, 4) * 128) | 0;
+    const y = (coordHash(7, i, 5) * 128) | 0;
+    const s = 0.5 + coordHash(x, y, 6) * 1.5;
     ctx.fillStyle = `rgba(0,0,0,${opacity})`;
     ctx.fillRect(x, y, s, s);
   }
@@ -73,13 +76,14 @@ function shine(ctx: CanvasRenderingContext2D, x1: number, y1: number, x2: number
 
 function gem(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, c1: string, c2: string) {
   ctx.save();
-  // Deep Glow
-  const glow = ctx.createRadialGradient(x, y, 0, x, y, r * 3);
-  glow.addColorStop(0, c1 + "aa");
+  // Deep Glow - Increased opacity for higher fidelity
+  const glow = ctx.createRadialGradient(x, y, 0, x, y, r * 3.5);
+  glow.addColorStop(0, c1 + "cc");
+  glow.addColorStop(0.4, c1 + "44");
   glow.addColorStop(1, "transparent");
   ctx.fillStyle = glow;
   ctx.globalCompositeOperation = "screen";
-  ctx.beginPath(); ctx.arc(x, y, r * 3, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(x, y, r * 3.5, 0, Math.PI * 2); ctx.fill();
   ctx.restore();
 
   // Body — hexagonal facet
@@ -91,28 +95,47 @@ function gem(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, c1:
   ctx.lineTo(x - r * 0.85, y + r * 0.4);
   ctx.lineTo(x - r * 0.85, y - r * 0.4);
   ctx.closePath();
-  const g = ctx.createRadialGradient(x - r * 0.3, y - r * 0.4, 0, x, y, r * 1.2);
+  const g = ctx.createRadialGradient(x - r * 0.4, y - r * 0.5, 0, x, y, r * 1.4);
   g.addColorStop(0, "#ffffff");
-  g.addColorStop(0.15, c1);
-  g.addColorStop(1, c2);
+  g.addColorStop(0.1, "#ffffff");
+  g.addColorStop(0.25, c1);
+  g.addColorStop(0.7, c2);
+  g.addColorStop(1, "#000000");
   ctx.fillStyle = g;
   ctx.fill();
-  ctx.strokeStyle = "rgba(0,0,0,0.8)";
-  ctx.lineWidth = 1.8;
+  ctx.strokeStyle = "rgba(0,0,0,0.9)";
+  ctx.lineWidth = 2;
   ctx.stroke();
 
-  // Internal facets
+  // Internal facets - Enhanced with multi-layered strokes
   ctx.beginPath();
   ctx.moveTo(x - r * 0.85, y - r * 0.4);
   ctx.lineTo(x, y - r);
   ctx.lineTo(x + r * 0.85, y - r * 0.4);
-  ctx.strokeStyle = "rgba(255,255,255,0.5)";
-  ctx.lineWidth = 1.2;
+  ctx.strokeStyle = "rgba(255,255,255,0.6)";
+  ctx.lineWidth = 1.5;
   ctx.stroke();
 
-  // Sparkle
+  ctx.beginPath();
+  ctx.moveTo(x - r * 0.85, y + r * 0.4);
+  ctx.lineTo(x, y + r);
+  ctx.lineTo(x + r * 0.85, y + r * 0.4);
+  ctx.strokeStyle = "rgba(0,0,0,0.3)";
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  // Center refraction line
+  ctx.beginPath();
+  ctx.moveTo(x - r * 0.85, y - r * 0.4);
+  ctx.lineTo(x + r * 0.85, y + r * 0.4);
+  ctx.strokeStyle = "rgba(255,255,255,0.2)";
+  ctx.stroke();
+
+  // Sparkle - Multi-layered for "bloom" effect
   ctx.fillStyle = "rgba(255,255,255,0.95)";
-  ctx.beginPath(); ctx.arc(x - r * 0.32, y - r * 0.42, r * 0.25, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(x - r * 0.35, y - r * 0.45, r * 0.3, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = "rgba(255,255,255,0.5)";
+  ctx.beginPath(); ctx.arc(x - r * 0.35, y - r * 0.45, r * 0.6, 0, Math.PI * 2); ctx.fill();
 }
 
 function smallGem(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, c1: string, c2: string) {
@@ -190,6 +213,9 @@ function drawBlade(
   bladePath(ctx, cx, top, bottom, bw);
   ctx.clip();
   rimLight(ctx, "rgba(255,255,255,0.25)", 4);
+
+  // Use high-fidelity grit/noise
+  addGritPx(ctx, cx - bw, top, bw * 2, bottom - top, 0.12, 0.04);
   addNoise(ctx, 0.04);
   ctx.restore();
 
@@ -852,7 +878,15 @@ function drawAxeHeadIron(ctx: CanvasRenderingContext2D) {
   ctx.closePath();
   const lg = ctx.createLinearGradient(cx - 10, 0, cx + 50, 0);
   lg.addColorStop(0, "#4a4a4a"); lg.addColorStop(0.4, "#a0a0a0"); lg.addColorStop(0.7, "#d0d0d0"); lg.addColorStop(1, "#606060");
-  ctx.fillStyle = lg; ctx.fill(); outline(ctx, "#1a1a1a", 3.5);
+  ctx.fillStyle = lg; ctx.fill();
+
+  ctx.save();
+  ctx.clip();
+  addGritPx(ctx, cx - 30, cy - 40, 80, 80, 0.15, 0.05);
+  rimLight(ctx, "rgba(255,255,255,0.2)", 3);
+  ctx.restore();
+
+  outline(ctx, "#1a1a1a", 3.5);
   // Edge highlight
   ctx.beginPath();
   ctx.bezierCurveTo(cx + 50, cy - 28, cx + 50, cy + 28, cx + 28, cy + 34);
@@ -1003,7 +1037,15 @@ function drawHammerHeadIron(ctx: CanvasRenderingContext2D) {
   ctx.beginPath(); ctx.roundRect(cx - w / 2, cy - h / 2, w, h, 5);
   const lg = ctx.createLinearGradient(0, cy - h / 2, 0, cy + h / 2);
   lg.addColorStop(0, "#b0b0b0"); lg.addColorStop(0.3, "#d8d8d8"); lg.addColorStop(0.7, "#888"); lg.addColorStop(1, "#444");
-  ctx.fillStyle = lg; ctx.fill(); outline(ctx, "#1a1a1a", 3.5);
+  ctx.fillStyle = lg; ctx.fill();
+
+  ctx.save();
+  ctx.clip();
+  addGritPx(ctx, cx - w/2, cy - h/2, w, h, 0.18, 0.06);
+  rimLight(ctx, "rgba(255,255,255,0.25)", 4);
+  ctx.restore();
+
+  outline(ctx, "#1a1a1a", 3.5);
   // Crosshatch on face
   ctx.strokeStyle = "rgba(80,80,80,0.4)"; ctx.lineWidth = 1;
   for (let hx = cx - w / 2 + 6; hx < cx + w / 2 - 4; hx += 8) {
@@ -1214,7 +1256,15 @@ function drawShieldRoundIron(ctx: CanvasRenderingContext2D) {
   ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2);
   const lg = ctx.createRadialGradient(cx - 8, cy - 8, 0, cx, cy, r);
   lg.addColorStop(0, "#c0c0c0"); lg.addColorStop(0.6, "#808080"); lg.addColorStop(1, "#303030");
-  ctx.fillStyle = lg; ctx.fill(); outline(ctx, "#1a1a1a", 3.5);
+  ctx.fillStyle = lg; ctx.fill();
+
+  ctx.save();
+  ctx.clip();
+  addGritPx(ctx, cx - r, cy - r, r * 2, r * 2, 0.12, 0.04);
+  rimLight(ctx, "rgba(255,255,255,0.2)", 4);
+  ctx.restore();
+
+  outline(ctx, "#1a1a1a", 3.5);
   // Rim
   ctx.beginPath(); ctx.arc(cx, cy, r - 4, 0, Math.PI * 2);
   ctx.strokeStyle = "#d0d0d0"; ctx.lineWidth = 2.5; ctx.stroke();
